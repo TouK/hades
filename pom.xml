@@ -26,7 +26,7 @@ limitations under the License.
     <groupId>pl.touk.top.hades</groupId>
     <artifactId>hades</artifactId>
     <packaging>jar</packaging>
-    <version>1.0.0</version>
+    <version>1.0.1-SNAPSHOT</version>
     <url>http://top.touk.pl/confluence/display/top/Hades+-+High+Availability+Data+Source</url>
     <name>Hades</name>
 
@@ -85,9 +85,9 @@ limitations under the License.
     </dependencyManagement>
 
     <scm>
-        <connection>scm:svn:http://top.touk.pl/svn/hades/tags/hades-1.0.0</connection>
-        <developerConnection>scm:svn:http://top.touk.pl/svn/hades/tags/hades-1.0.0</developerConnection>
-        <url>http://top.touk.pl/svn/hades/tags/hades-1.0.0</url>
+        <connection>scm:svn:http://top.touk.pl/svn/hades/trunk</connection>
+        <developerConnection>scm:svn:http://top.touk.pl/svn/hades/trunk</developerConnection>
+        <url>http://top.touk.pl/svn/hades/trunk</url>
     </scm>
 
 </project>
