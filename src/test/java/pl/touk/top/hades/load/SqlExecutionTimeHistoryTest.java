@@ -13,11 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades;
+package pl.touk.top.hades.load;
 
 import org.junit.Test;
 import static org.junit.Assert.fail;
 import static junit.framework.Assert.assertEquals;
+import pl.touk.top.hades.load.Average;
+import pl.touk.top.hades.load.SqlExecutionTimeHistory;
 
 /**
  * TODO: description

@@ -25,6 +25,8 @@ import javax.sql.DataSource;
 import java.sql.SQLException;
 import java.sql.Connection;
 
+import pl.touk.top.hades.load.LoadFailoverActivator;
+
 /**
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */

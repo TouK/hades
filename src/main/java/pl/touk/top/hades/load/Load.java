@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades.finitestateautomata;
+package pl.touk.top.hades.load;
 
 /**
  * A holder for the main data source {@link LoadLevel load level} and the failover data source load level. If the two

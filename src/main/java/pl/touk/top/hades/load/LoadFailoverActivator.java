@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades;
+package pl.touk.top.hades.load;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,12 +30,13 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 
-import pl.touk.top.hades.finitestateautomata.*;
-import static pl.touk.top.hades.finitestateautomata.LoadLevel.low;
-import static pl.touk.top.hades.finitestateautomata.LoadLevel.medium;
-import static pl.touk.top.hades.finitestateautomata.LoadLevel.high;
-import static pl.touk.top.hades.finitestateautomata.LoadLevel.exceptionWhileMeasuring;
-import static pl.touk.top.hades.finitestateautomata.LoadLevel.notMeasuredYet;
+import static pl.touk.top.hades.load.LoadLevel.low;
+import static pl.touk.top.hades.load.LoadLevel.medium;
+import static pl.touk.top.hades.load.LoadLevel.high;
+import static pl.touk.top.hades.load.LoadLevel.exceptionWhileMeasuring;
+import static pl.touk.top.hades.load.LoadLevel.notMeasuredYet;
+import pl.touk.top.hades.FailoverActivator;
+import pl.touk.top.hades.HaDataSource;
 
 /**
  * A failover activator that activates failover when the main data source

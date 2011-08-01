@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades;
+package pl.touk.top.hades.load;
 
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
@@ -29,6 +29,9 @@ import java.util.Timer;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.PreparedStatement;
+
+import pl.touk.top.hades.load.LoadFailoverActivator;
+import pl.touk.top.hades.HaDataSource;
 
 /**
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>

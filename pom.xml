@@ -85,7 +85,7 @@ limitations under the License.
     </dependencyManagement>
 
     <scm>
-        <connection>scm:svn:http://top.touk.pl/svn/hades/trunk</connection>
+        <connection>scm:git:git://top.touk.pl/svn/hades/trunk</connection>
         <developerConnection>scm:svn:http://top.touk.pl/svn/hades/trunk</developerConnection>
         <url>http://top.touk.pl/svn/hades/trunk</url>
     </scm>

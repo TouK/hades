@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades;
+package pl.touk.top.hades.load;
 
 /**
  * A class containing an average of some set of longs, the size of the set and the last value added to the set.

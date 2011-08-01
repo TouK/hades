@@ -13,17 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades.finitestateautomata;
+package pl.touk.top.hades.load;
+
+import pl.touk.top.hades.HaDataSourceMBean;
 
 /**
- * Descriptive (i.e. not including numeric values) load level of a database.
+ * An interface implemented by {@link LoadHaDataSource} that enables jmx access to the
+ * data source. It extends {@link pl.touk.top.hades.HaDataSourceMBean} simply by adding some method
+ * specific to load measuring.
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public enum LoadLevel {
-    low,
-    medium,
-    high,
-    exceptionWhileMeasuring,
-    notMeasuredYet
+public interface LoadHaDataSourceMBean extends HaDataSourceMBean {
+
+    String getFailoverLoad();
+    String getMainLoad();
+    String getLoadLog();
 }

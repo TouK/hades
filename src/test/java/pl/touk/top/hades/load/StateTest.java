@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades.finitestateautomata;
+package pl.touk.top.hades.load;
 
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
@@ -21,6 +21,9 @@ import static org.junit.Assert.assertFalse;
 
 import java.util.List;
 import java.util.ArrayList;
+
+import pl.touk.top.hades.load.LoadLevel;
+import pl.touk.top.hades.load.State;
 
 /**
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
