@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades.load;
+package pl.touk.hades.load;
 
 /**
  * An immutable state of a {@link StateMachine} consisting of a {@link Load} and a boolean indicating whether failover is active.

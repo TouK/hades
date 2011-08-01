@@ -6,4 +6,4 @@
  * roughly speaking the failover data source is used when the main one is overloaded. If hysteresis is employed the
  * failover data source is used also when the main one is recovering after overload.
  */
-package pl.touk.top.hades.load;
+package pl.touk.hades.load;

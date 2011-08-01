@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades.load;
+package pl.touk.hades.load;
 
 import org.junit.Test;
 import static org.junit.Assert.assertTrue;
@@ -21,13 +21,9 @@ import static org.junit.Assert.assertFalse;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import static pl.touk.top.hades.load.LoadLevel.low;
-import static pl.touk.top.hades.load.LoadLevel.medium;
-import static pl.touk.top.hades.load.LoadLevel.high;
-import pl.touk.top.hades.load.Load;
-import pl.touk.top.hades.load.State;
-import pl.touk.top.hades.load.StateMachine;
-import pl.touk.top.hades.load.Transition;
+import static pl.touk.hades.load.LoadLevel.low;
+import static pl.touk.hades.load.LoadLevel.medium;
+import static pl.touk.hades.load.LoadLevel.high;
 
 /**
  * TODO: description

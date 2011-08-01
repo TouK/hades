@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades.load;
+package pl.touk.hades.load;
 
 /**
  * A factory that produces an instance of {@link Load} class when given a pair of numeric values: the main database load

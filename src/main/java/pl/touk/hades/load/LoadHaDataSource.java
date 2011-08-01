@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades.load;
+package pl.touk.hades.load;
 
-import pl.touk.top.hades.HaDataSource;
+import pl.touk.hades.HaDataSource;
 
 /**
- * A {@link pl.touk.top.hades.HaDataSource} whose failover activator is of type {@link LoadFailoverActivator}.
+ * A {@link pl.touk.hades.HaDataSource} whose failover activator is of type {@link LoadFailoverActivator}.
  * <p>
  * This class extends <code>HaDataSource</code> simply by implementing jmx operations defined in {@link LoadHaDataSourceMBean}.
  * These operations are specific to load measuring done by enclosed <code>LoadFailoverActivator</code>.

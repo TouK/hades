@@ -13,20 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades;
+package pl.touk.hades.load;
 
 /**
- * An interface implemented by {@link HaDataSource} that enables jmx access to the data source.
+ * Descriptive (i.e. not including numeric values) load level of a database.
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public interface HaDataSourceMBean {
-
-    void pinMainDataSource();
-    void pinFailoverDataSource();
-    void removePin();
-    boolean getPinEnabled();
-
-    boolean isFailoverActive();
-    String getActiveDataSourceName();
+enum LoadLevel {
+    low,
+    medium,
+    high,
+    exceptionWhileMeasuring,
+    notMeasuredYet
 }

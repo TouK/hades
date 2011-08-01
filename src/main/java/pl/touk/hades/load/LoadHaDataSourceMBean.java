@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades.load;
+package pl.touk.hades.load;
 
-import pl.touk.top.hades.HaDataSourceMBean;
+import pl.touk.hades.HaDataSourceMBean;
 
 /**
- * An interface implemented by {@link pl.touk.top.hades.load.LoadHaDataSource} that enables jmx access to the
- * data source. It extends {@link pl.touk.top.hades.HaDataSourceMBean} simply by adding some method
+ * An interface implemented by {@link pl.touk.hades.load.LoadHaDataSource} that enables jmx access to the
+ * data source. It extends {@link pl.touk.hades.HaDataSourceMBean} simply by adding some method
  * specific to load measuring.
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>

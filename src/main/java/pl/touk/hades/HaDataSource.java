@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.top.hades;
+package pl.touk.hades;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -109,7 +109,7 @@ public class HaDataSource<T extends FailoverActivator> implements DataSource, Ha
     /**
      * Associates the failover activator set by {@link #setFailoverActivator(FailoverActivator)} with this HA data
      * source. This method simply invokes
-     * {@link #getFailoverActivator()}.{@link pl.touk.top.hades.FailoverActivator#init(HaDataSource) init(this)}.
+     * {@link #getFailoverActivator()}.{@link pl.touk.hades.FailoverActivator#init(HaDataSource) init(this)}.
      */
     public void init() {
         getFailoverActivator().init(this);
