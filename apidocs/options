@@ -1,0 +1,24 @@
+-classpath
+'/home/sokol/tmp/hades/hades/target/classes:/home/sokol/.m2/repository/org/slf4j/slf4j-api/1.5.5/slf4j-api-1.5.5.jar'
+-encoding
+'UTF-8'
+-protected
+-sourcepath
+'/home/sokol/tmp/hades/hades/src/main/java'
+-author
+-bottom
+'Copyright &#169; 2011. All Rights Reserved.'
+-charset
+'UTF-8'
+-d
+'/home/sokol/tmp/hades/hades/target/site/apidocs'
+-docencoding
+'UTF-8'
+-doctitle
+'Hades 1.0.0 API'
+-linkoffline
+'http://download.oracle.com/javase/1.5.0/docs/api' '/home/sokol/tmp/hades/hades/target/javadoc-bundle-options'
+-use
+-version
+-windowtitle
+'Hades 1.0.0 API'
