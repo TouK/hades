@@ -1,0 +1,36 @@
+Hades - High Availability Data Source
+
+ Author
+
+  Hades was created in TouK organization by Michal Sokolowski.
+  TouK: http://touk.pl, info@touk.pl
+  Michal Sokolowski: msk@touk.pl
+
+ Inception date
+
+  Project Hades was started in 2011.
+
+ Project license
+
+  Hades is an open source project released under the Apache License, Version
+  2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+ What is it?
+
+  Hades is a java project that provides a HA (high availability) data source.
+  This HA data source contains two other data sources - the main one and the
+  failover one. The HA data source exposes one of them at a time and can
+  automatically switch between them when certain conditions are met. These
+  conditions are highly configurable. By default, when the main data source
+  is overloaded, the failover data source is used. The load of a data base is
+  determined on the basis of the average execution time of some configurable
+  sql statement that is examined periodically.
+
+  The HA data source exposes through JMX its state and also operations for
+  manual switching between the two contained data sources in case automatic
+  switching must be suppressed for some reason.
+
+ Where it can be found
+
+  Hades is hosted on GitHub:
+  http://touk.github.com/hades/
