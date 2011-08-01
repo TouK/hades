@@ -20,7 +20,7 @@ package pl.touk.top.hades.load;
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public class Transition {
+class Transition {
 
     private final State sourceState;
     private final State destinationState;

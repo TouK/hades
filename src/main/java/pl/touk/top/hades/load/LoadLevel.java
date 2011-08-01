@@ -20,7 +20,7 @@ package pl.touk.top.hades.load;
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public enum LoadLevel {
+enum LoadLevel {
     low,
     medium,
     high,

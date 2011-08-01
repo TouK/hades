@@ -30,7 +30,7 @@ package pl.touk.top.hades.load;
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public class LoadFactory {
+class LoadFactory {
 
     private long lowerLimit;
     private long higherLimit;

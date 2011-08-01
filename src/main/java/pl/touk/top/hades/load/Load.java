@@ -24,7 +24,7 @@ package pl.touk.top.hades.load;
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public class Load {
+class Load {
 
     private final LoadLevel mainDb;
     private final LoadLevel failoverDb;

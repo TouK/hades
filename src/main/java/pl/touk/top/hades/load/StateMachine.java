@@ -33,7 +33,7 @@ import java.util.*;
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public class StateMachine {
+class StateMachine {
 
     private final Map<State, Map<Load, Boolean>> transitions = new HashMap<State, Map<Load, Boolean>>();
     private State currentState;
