@@ -16,8 +16,7 @@
 package pl.touk.top.hades;
 
 /**
- * An interface implemented by {@link HaDataSource} that enables jmx access to the
- * data source.
+ * An interface implemented by {@link HaDataSource} that enables jmx access to the data source.
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */

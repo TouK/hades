@@ -18,12 +18,8 @@ package pl.touk.top.hades.load;
 import org.junit.Test;
 import static org.junit.Assert.fail;
 import static junit.framework.Assert.assertEquals;
-import pl.touk.top.hades.load.Average;
-import pl.touk.top.hades.load.SqlExecutionTimeHistory;
 
 /**
- * TODO: description
- *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
 public class SqlExecutionTimeHistoryTest {

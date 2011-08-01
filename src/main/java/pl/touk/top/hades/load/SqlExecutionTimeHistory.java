@@ -74,7 +74,7 @@ class SqlExecutionTimeHistory {
      * last (oldest) executin time from it. Returns the new, updated {@link Average}. If the specified execution time
      * is <i>infinity</i> then the returned average is also infinity, i.e. an average constructed like this:
      * <p>
-     * <code>new {@link Average#Average(long, int, long) Average(Long.MAX_VALUE, &lt;current history size&gt;, Long.MAX_VALUE)</code>).
+     * <code>new {@link Average#Average(long, int, long) Average(Long.MAX_VALUE, &lt;current history size&gt;, Long.MAX_VALUE)}</code>).
      *
      * @param executionTime new execution time that should be added to the history
      * @return new, updated average

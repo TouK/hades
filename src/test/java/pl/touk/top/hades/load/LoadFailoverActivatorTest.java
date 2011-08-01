@@ -36,7 +36,7 @@ import pl.touk.top.hades.HaDataSource;
 /**
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public class FailoverActivatorTest {
+public class LoadFailoverActivatorTest {
 
     @Test
     public void shouldCancelExecutionScheduledAtFixedRateIfLastExecutionDelayedTheCurrentOne() throws InterruptedException, SQLException {

@@ -16,29 +16,36 @@
 package pl.touk.top.hades;
 
 /**
- * The class that controls the switching between the main data source and the failover data source in a
- * {@link HaDataSource}.
+ * The class that controls the switching between the main and the failover data sources in a {@link HaDataSource}.
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
 public interface FailoverActivator {
 
     /**
-     * Returns <code>true</code> if failover is active and <code>false</code> otherwise. This method is invoked by the
-     * HA data source controlled by this activator whenever
-     * {@link HaDataSource#getConnection()} or
-     * {@link HaDataSource#getConnection(String, String)} is invoked.
-     * <p>
-     * It is the responsibility of implementations to define when failover and failback should happen.
+     * Returns <code>true</code> if failover is active and <code>false</code> otherwise. This method controls the
+     * process of switching between tha main and the failover data sources contained inside the HA data source
+     * associated with this failover activator. For more details see methods {@link HaDataSource#getConnection()} and
+     * {@link HaDataSource#getConnection(String, String)} which invoke this method to learn whether failover is
+     * active or not.
      *
      * @return <code>true</code> if failover is active or <code>false</code> otherwise
      */
     boolean isFailoverActive();
 
     /**
-     * Gives the control over the given HA data source to this failover activator and initializes this failover activator.
+     * Associates the given HA data source with this failover activator and initializes this failover activator.
+     * This method should not be invoked directly.
+     * It is invoked by haDataSource.{@link pl.touk.top.hades.HaDataSource#init() init()} as part of the
+     * association process that should be done as follows:
+     * <pre>
+     * haDataSource.{@link pl.touk.top.hades.HaDataSource#setFailoverActivator(FailoverActivator) setFailoverActivator(thisFailoverActivator)};
+     * haDataSource.{@link pl.touk.top.hades.HaDataSource#init() init()};
+     * </pre>
+     * The purpose of this method is to give an implementation a chance to initialize itself whenever it is
+     * associated with a HA data source.
      *
-     * @param haDataSource HA data source that should be controlled by this failover activator
+     * @param haDataSource HA data source that should be associated with this failover activator
      */
     void init(HaDataSource haDataSource);
 }

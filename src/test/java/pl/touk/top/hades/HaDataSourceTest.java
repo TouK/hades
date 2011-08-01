@@ -107,7 +107,7 @@ public class HaDataSourceTest {
 
     @Test
     public void shouldLogTimeoutExceptionIfWaitingForConnectionToMainDsTooLong() throws SQLException {
-        HaDataSource ds = new HaDataSource();
+        HaDataSource<LoadFailoverActivator> ds = new HaDataSource<LoadFailoverActivator>();
         ds.setMainDataSource(createMockDataSource("mainDs", false, 2000));
         ds.setFailoverDataSource(createMockDataSource("failoverDs", false, 0));
         LoadFailoverActivator activator = new LoadFailoverActivator();
@@ -166,7 +166,7 @@ public class HaDataSourceTest {
     }
 
     private HaDataSource createMockFailoverDataSource(boolean failoverActive, boolean throwException) throws SQLException {
-        HaDataSource ds = new HaDataSource();
+        HaDataSource<FailoverActivator> ds = new HaDataSource<FailoverActivator>();
         ds.setMainDataSource(createMockDataSource("mainDs", throwException));
         ds.setFailoverDataSource(createMockDataSource("failoverDs", throwException));
         FailoverActivator activator = mock(FailoverActivator.class);

@@ -111,7 +111,7 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
         // All possible transitions between above states keep failover active:
         StateMachine.appendAllPossibleTransitionsBetweenStates(failoverDbStates, transitions);
 
-        // Activate failover when main database load is high or worse and the failover database works and is better:
+        // Activate failover when main database load becomes high and the failover database works and its load is smaller:
         StateMachine.appendAllPossibleTransitionsFromStates(mainDbStates, new State(true, high, low), transitions);
         StateMachine.appendAllPossibleTransitionsFromStates(mainDbStates, new State(true, high, medium), transitions);
         StateMachine.appendAllPossibleTransitionsFromStates(mainDbStates, new State(true, high, true), transitions);
@@ -154,7 +154,10 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
      * statement is executed on the main data source and the failover data source and the execution times are measured.
      * These two execution times are included in above averages passed to the factory.
      * <p>
-     * When current load is known a decision is made whether failover or failback should be activated as follows. TODO.
+     * When current load is known a decision is made whether failover or failback should be activated as follows.
+     * Failover is activated when main database load becomes high and the failover database works and its load is
+     * smaller. Failback is activated when main database load returns to low or becomes smaller than the high failover
+     * database load.
      */
     public void run() {
         String curRunLogPrefix = "[" + haDataSource.toString() + ", ts=" + System.currentTimeMillis() + "] ";
@@ -275,7 +278,7 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
 
     private String nanosToMillis(long l) {
         if (l < Long.MAX_VALUE) {
-            return decimalFormat.format(((double) l) / haDataSource.nanosInMillisecond);
+            return decimalFormat.format(((double) l) / HaDataSource.nanosInMillisecond);
         } else {
             return "<N/A because of exception(s) - assuming infinity>";
         }
@@ -434,12 +437,12 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
 
     public void setStatementExecutionTimeLimitTriggeringFailoverMillis(int statementExecutionTimeLimitTriggeringFailoverMillis) {
         this.stmtExecTimeLimitTriggeringFailoverMillis = statementExecutionTimeLimitTriggeringFailoverMillis;
-        this.stmtExecTimeLimitTriggeringFailoverNanos = haDataSource.nanosInMillisecond * statementExecutionTimeLimitTriggeringFailoverMillis;
+        this.stmtExecTimeLimitTriggeringFailoverNanos = HaDataSource.nanosInMillisecond * statementExecutionTimeLimitTriggeringFailoverMillis;
     }
 
     public void setStatementExecutionTimeLimitTriggeringFailbackMillis(int statementExecutionTimeLimitTriggeringFailbackMillis) {
         this.statementExecutionTimeLimitTriggeringFailbackMillis = statementExecutionTimeLimitTriggeringFailbackMillis;
-        this.statementExecutionTimeLimitTriggeringFailbackNanos = haDataSource.nanosInMillisecond * statementExecutionTimeLimitTriggeringFailbackMillis;
+        this.statementExecutionTimeLimitTriggeringFailbackNanos = HaDataSource.nanosInMillisecond * statementExecutionTimeLimitTriggeringFailbackMillis;
     }
 
     public void setStatementExecutionTimesIncludedInAverage(int statementExecutionTimesIncludedInAverage) {

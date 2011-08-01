@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 /**
  * A data source which offers high-availability (HA) by enclosing two real data sources - the main one and the failover
  * one. Which enclosed data source is used is not determined by the HA data source itself. It is the responibility of
- * {@link FailoverActivator} that controls this HA data source.
+ * {@link FailoverActivator} associated with this HA data source.
  * <p>
  * This class should be used as follows:
  * <pre>
@@ -41,10 +41,8 @@ import org.slf4j.LoggerFactory;
  * HaDataSource haDataSource = new HaDataSource();
  * haDataSource.setMainDataSource(mainDs);
  * haDataSource.setFailoverDataSource(failoverDs);
- * // The following two calls are very important. The first one sets a failover activator
- * // of the HA data source. The second call causes that the activator is informed which
- * // HA data source it will be controling (i.e. the following invocation takes place
- * // inside the init method: someImplementationOfFailoverActivator.init(haDataSource)).
+ *
+ * // The following two calls associate the HA data source with the failover activator:
  * haDataSource.setFailoverActivator(someImplementationOfFailoverActivator);
  * haDataSource.init();
  *
@@ -53,24 +51,26 @@ import org.slf4j.LoggerFactory;
  * // main and the failover data sources. For example every 20 seconds:
  * new Timer().schedule(someImplementationOfFailoverActivator, 0, 20000);
  *
- * // Now HA data source is controlled by the activator. If the activator desides that
+ * // Now HA data source is controlled by the activator. If the activator decides that
  * // the failover is necessary (because for example mainDs.getConnection() throws an
  * // exception) it will silently do it. After the failover, connections from the failover
- * // data source are returned. If the activator desides that the failback is possible
+ * // data source are returned. If the activator decides that the failback is possible
  * // (because for example mainDs.getConnection() starts to retun connections) it can
  * // silently do it. After the failback, connections from the main data source are returned.
  *
- * // Here go some operations. As some time passes a failover can happen (silently) if
+ * // Here go some operations. As some time passes a failover can be activated
+ * // (by someImplementationOfFailoverActivator in the above timer thread) if
  * // something is wrong with the main data source.
  * ...
  *
  * conn1 = haDataSource().getConnection(); // conn1 can be a connection from failover data
- *                                         // source if failover was activated by
+ *                                         // source if failover was activated by the above timer
  *                                         // someImplementationOfFailoverActivator.
  * // Here go some operations on conn1.
  * ...
  *
- * // Here go some operations. As some time passes a failback can happen (silently) if
+ * // Here go some operations. As some time passes a failback can be activated
+ * // (by someImplementationOfFailoverActivator in the above timer thread) if
  * // the main data source is back to normal.
  * ...
  *
@@ -107,7 +107,8 @@ public class HaDataSource<T extends FailoverActivator> implements DataSource, Ha
     private final DecimalFormat decimalFormat = new DecimalFormat("#0.000 ms");
 
     /**
-     * Invokes
+     * Associates the failover activator set by {@link #setFailoverActivator(FailoverActivator)} with this HA data
+     * source. This method simply invokes
      * {@link #getFailoverActivator()}.{@link pl.touk.top.hades.FailoverActivator#init(HaDataSource) init(this)}.
      */
     public void init() {
@@ -115,10 +116,10 @@ public class HaDataSource<T extends FailoverActivator> implements DataSource, Ha
     }
 
     /**
-     * Delegates to {@link javax.sql.DataSource#getConnection() getConnection()} on the main data source if failover is
-     * inactive or on the failover data source otherwise.
-     * To check if failover is active {@link FailoverActivator#isFailoverActive() isFailoverActive()} on the failover
-     * activator set in {@link HaDataSource#setFailoverActivator(FailoverActivator)} is invoked.
+     * Invokes {@link javax.sql.DataSource#getConnection() getConnection()} on the main data source or on the failover
+     * data source if failover is inactive or active respectively.
+     * To check whether failover is active {@link FailoverActivator#isFailoverActive() isFailoverActive()} on the
+     * associated failover activator is invoked.
      * <p>
      * The above check is ommited if the main data source is pinned (see {@link #pinMainDataSource()}).
      * In such case connections from the main data source are returned.
@@ -134,10 +135,10 @@ public class HaDataSource<T extends FailoverActivator> implements DataSource, Ha
     }
 
     /**
-     * Delegates to {@link javax.sql.DataSource#getConnection(String, String) getConnection(username, password)} on the
-     * main data source if failover is inactive or on the failover data source otherwise.
-     * To check if failover is active {@link FailoverActivator#isFailoverActive() isFailoverActive()} on the failover
-     * activator set in {@link HaDataSource#setFailoverActivator(FailoverActivator)} is invoked.
+     * Invokes {@link javax.sql.DataSource#getConnection(String, String) getConnection(username, password)} on the main
+     * data source or on the failover data source if failover is inactive or active respectively.
+     * To check whether failover is active {@link FailoverActivator#isFailoverActive() isFailoverActive()} on the
+     * associated failover activator is invoked.
      * <p>
      * The above check is ommited if the main data source is pinned (see {@link #pinMainDataSource()}).
      * In such case connections from the main data source are returned.
@@ -360,8 +361,7 @@ public class HaDataSource<T extends FailoverActivator> implements DataSource, Ha
     }
 
     /**
-     * Gets the failover activator controlling this HA data source, i.e. the activator set in
-     * {@link #setFailoverActivator(FailoverActivator)}.
+     * Gets the failover activator set by {@link #setFailoverActivator(FailoverActivator)}.
      *
      * @return failover activator controlling this HA data source
      */

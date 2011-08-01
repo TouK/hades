@@ -18,7 +18,7 @@ package pl.touk.top.hades.load;
 import pl.touk.top.hades.HaDataSourceMBean;
 
 /**
- * An interface implemented by {@link LoadHaDataSource} that enables jmx access to the
+ * An interface implemented by {@link pl.touk.top.hades.load.LoadHaDataSource} that enables jmx access to the
  * data source. It extends {@link pl.touk.top.hades.HaDataSourceMBean} simply by adding some method
  * specific to load measuring.
  *
