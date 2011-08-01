@@ -26,7 +26,7 @@ limitations under the License.
     <groupId>pl.touk.hades</groupId>
     <artifactId>hades</artifactId>
     <packaging>jar</packaging>
-    <version>1.0.0</version>
+    <version>1.0.1-SNAPSHOT</version>
     <url>http://touk.github.com/hades/</url>
     <name>Hades</name>
     <description>
