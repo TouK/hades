@@ -19,12 +19,15 @@ package pl.touk.hades.load;
  * A factory that produces an instance of {@link Load} class when given a pair of numeric values: the main database load
  * and the failover database load. Such a numeric pair is transformed into a load (which is descriptive rather than
  * numeric) as follows.
- * Each factory holds two numeric values: lower limit and
- * higher limit (which can be set in {@link #LoadFactory(long, long)}. Numeric values not greater than the lower limit
+ * Each factory holds two numeric values: <code>stmtExecTimeLimitTriggeringFailoverNanos</code> and
+ * <code>statementExecutionTimeLimitTriggeringFailbackNanos</code> (which can be set in {@link #LoadFactory(long, long)}),
+ * where the first value must not be less than the second value.
+ * Numeric values not greater than <code>statementExecutionTimeLimitTriggeringFailbackNanos</code>
  * indicate {@link LoadLevel#low low} load level.
- * Numeric values greater than the lower limit and not greater than the higher limit indicate
- * {@link LoadLevel#medium medium} load level.
- * Numeric values greater than the higher limit and less than <code>Long.MAX_VALUE</code>
+ * Numeric values greater than <code>statementExecutionTimeLimitTriggeringFailbackNanos</code> and not greater than
+ * <code>stmtExecTimeLimitTriggeringFailoverNanos</code> indicate {@link LoadLevel#medium medium} load level.
+ * Numeric values greater than <code>stmtExecTimeLimitTriggeringFailoverNanos</code> and less than
+ * <code>Long.MAX_VALUE</code>
  * indicate {@link LoadLevel#high high} load level. Numeric values equal to <code>Long.MAX_VALUE</code> indicate
  * {@link LoadLevel#exceptionWhileMeasuring exceptionWileMeasuring} load level.
  *
@@ -32,45 +35,45 @@ package pl.touk.hades.load;
  */
 class LoadFactory {
 
-    private long lowerLimit;
-    private long higherLimit;
+    private long statementExecutionTimeLimitTriggeringFailbackNanos;
+    private long stmtExecTimeLimitTriggeringFailoverNanos;
 
     /**
      * Constructs a factory with the given higher and lower limits.
      *
-     * @param higherLimit higher limit
-     * @param lowerLimit lower limit
+     * @param stmtExecTimeLimitTriggeringFailoverNanos higher limit
+     * @param statementExecutionTimeLimitTriggeringFailbackNanos lower limit
      */
-    public LoadFactory(long higherLimit, long lowerLimit) {
-        if (higherLimit < lowerLimit) {
-            throw new IllegalArgumentException("higherLimit < lowerLimit");
+    public LoadFactory(long stmtExecTimeLimitTriggeringFailoverNanos, long statementExecutionTimeLimitTriggeringFailbackNanos) {
+        if (stmtExecTimeLimitTriggeringFailoverNanos < statementExecutionTimeLimitTriggeringFailbackNanos) {
+            throw new IllegalArgumentException("stmtExecTimeLimitTriggeringFailover < statementExecutionTimeLimitTriggeringFailback");
         }
-        if (higherLimit <= 0) {
-            throw new IllegalArgumentException("higherLimit <= 0");
+        if (stmtExecTimeLimitTriggeringFailoverNanos <= 0) {
+            throw new IllegalArgumentException("stmtExecTimeLimitTriggeringFailover <= 0");
         }
-        if (lowerLimit <= 0) {
-            throw new IllegalArgumentException("lowerLimit <= 0");
+        if (statementExecutionTimeLimitTriggeringFailbackNanos <= 0) {
+            throw new IllegalArgumentException("statementExecutionTimeLimitTriggeringFailback <= 0");
         }
-        this.higherLimit = higherLimit;
-        this.lowerLimit = lowerLimit;
+        this.stmtExecTimeLimitTriggeringFailoverNanos = stmtExecTimeLimitTriggeringFailoverNanos;
+        this.statementExecutionTimeLimitTriggeringFailbackNanos = statementExecutionTimeLimitTriggeringFailbackNanos;
     }
 
-    public Load getLoad(long mainDbLoad, long failoverDbLoad) {
-        LoadLevel mainDbLoadLevel = getLoadLevel(mainDbLoad);
-        LoadLevel failoverDbLoadLevel = getLoadLevel(failoverDbLoad);
+    public Load getLoad(long mainDbLoadNanos, long failoverDbLoadNanos) {
+        LoadLevel mainDbLoadLevel = getLoadLevel(mainDbLoadNanos);
+        LoadLevel failoverDbLoadLevel = getLoadLevel(failoverDbLoadNanos);
         if (mainDbLoadLevel != failoverDbLoadLevel) {
             return new Load(mainDbLoadLevel, failoverDbLoadLevel);
         } else {
-            return new Load(mainDbLoadLevel, mainDbLoad > failoverDbLoad);
+            return new Load(mainDbLoadLevel, mainDbLoadNanos > failoverDbLoadNanos);
         }
     }
 
-    private LoadLevel getLoadLevel(long load) {
-        if (load <= lowerLimit) {
+    private LoadLevel getLoadLevel(long loadNanos) {
+        if (loadNanos <= statementExecutionTimeLimitTriggeringFailbackNanos) {
             return LoadLevel.low;
-        } else if (load <= higherLimit) {
+        } else if (loadNanos <= stmtExecTimeLimitTriggeringFailoverNanos) {
             return LoadLevel.medium;
-        } else if (load < Long.MAX_VALUE) {
+        } else if (loadNanos < Long.MAX_VALUE) {
             return LoadLevel.high;
         } else {
             return LoadLevel.exceptionWhileMeasuring;

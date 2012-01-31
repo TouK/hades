@@ -56,6 +56,7 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
 
     private int statementExecutionTimesIncludedInAverage = 1;
     private int statementExecutionTimeout = -1;
+    private boolean statementExecutionTimeoutForced = false;
     private int connectionGettingTimeout = -1;
     private SqlExecutionTimeHistory stmtMainDbExecTimeHistory = null;
     private SqlExecutionTimeHistory stmtFailoverDbExecTimeHistory = null;
@@ -168,7 +169,7 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
 
         if (!lastExecutionDelayedThisExecution(curRunLogPrefix)) {
             try {
-                long mainDbStmtExecTimeNanos = measureStatementExecutionTimeNanos(curRunLogPrefix, false);
+                long mainDbStmtExecTimeNanos     = measureStatementExecutionTimeNanos(curRunLogPrefix, false);
                 long failoverDbStmtExecTimeNanos = measureStatementExecutionTimeNanos(curRunLogPrefix, true);
                 updateState(curRunLogPrefix, mainDbStmtExecTimeNanos, failoverDbStmtExecTimeNanos);
 
@@ -191,9 +192,9 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
     private void makeStateTransitionCorrespondingToCurrentLoad(String curRunLogPrefix) {
         State oldState = stateMachine.getCurrentState();
         if (stateMachine.transition(currentLoad)) {
-            informAboutFailbackOrWarnAboutFailover(curRunLogPrefix, oldState, stateMachine.getCurrentState().isFailoverActive());
+            warnAboutFailbackOrFailover(curRunLogPrefix, oldState, stateMachine.getCurrentState().isFailoverActive());
         } else {
-            debugNeitherFailoverNorFailback(curRunLogPrefix, oldState);
+            infoAboutPreservingFailoverOrFailback(curRunLogPrefix, oldState);
         }
     }
 
@@ -244,16 +245,16 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
         endOfLastRunMethod = System.currentTimeMillis();
     }
 
-    private void informAboutFailbackOrWarnAboutFailover(String curRunLogPrefix, State oldState, boolean failover) {
+    private void warnAboutFailbackOrFailover(String curRunLogPrefix, State oldState, boolean failover) {
         if (failover) {
             logger.warn(curRunLogPrefix + getLog(oldState));
         } else {
-            logger.info(curRunLogPrefix + getLog(oldState));
+            logger.warn(curRunLogPrefix + getLog(oldState));
         }
     }
 
-    private void debugNeitherFailoverNorFailback(String curRunLogPrefix, State oldState) {
-        logger.debug(curRunLogPrefix + getLog(oldState));
+    private void infoAboutPreservingFailoverOrFailback(String curRunLogPrefix, State oldState) {
+        logger.info(curRunLogPrefix + getLog(oldState));
     }
 
     private String getLog(State oldState) {
@@ -287,7 +288,6 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
     private long measureStatementExecutionTimeNanos(String curRunLogPrefix, boolean failover) throws InterruptedException {
         Connection connection = null;
         PreparedStatement preparedStatement = null;
-        Long queryStart = null;
         long start = System.nanoTime();
         try {
             connection = getConnection(failover, curRunLogPrefix);
@@ -295,24 +295,77 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
             if (preparedStatement == null) {
                 return Long.MAX_VALUE;
             }
-            queryStart = System.nanoTime();
+        } catch (RuntimeException e) {
+            long exceptionMoment = System.nanoTime();
+            logger.error(curRunLogPrefix + "runtime exception while preparing to measure statement execution time on " + haDataSource.desc(failover) + " caught in " + nanosToMillis(exceptionMoment - start) + " ms since the beginning of the preparation", e);
+            close(curRunLogPrefix, preparedStatement, connection, failover);
+            return Long.MAX_VALUE;
+        }
+        return execute(connection, preparedStatement, failover, curRunLogPrefix);
+    }
+
+    private long execute(Connection connection, PreparedStatement preparedStatement, boolean failover, String curRunLogPrefix) throws InterruptedException {
+        if (statementExecutionTimeout > 0 && statementExecutionTimeoutForced) {
+            return executeWithTimeout(connection, preparedStatement, failover, curRunLogPrefix);
+        } else {
+            return executeWithoutTimeout(connection, preparedStatement, failover, curRunLogPrefix);
+        }
+    }
+
+    private long executeWithoutTimeout(Connection connection, PreparedStatement preparedStatement, boolean failover, String curRunLogPrefix) {
+        long start = System.nanoTime();
+        try {
             preparedStatement.execute();
-            return System.nanoTime() - queryStart;
-        } catch (InterruptedException e) {
-            throw e;
-        } catch (Exception e) {
-            return logException(e, curRunLogPrefix, failover, start,  queryStart, System.nanoTime());
+            return System.nanoTime() - start;
+        } catch (SQLException e) {
+            return handlePreparedStatementExecuteException(e, start, failover, curRunLogPrefix);
+        } catch (RuntimeException e) {
+            return handlePreparedStatementExecuteException(e, start, failover, curRunLogPrefix);
         } finally {
             close(curRunLogPrefix, preparedStatement, connection, failover);
         }
     }
-    private long logException(Exception e, String curRunLogPrefix, boolean failover, long start, Long queryStart, long exceptionMoment) {
-        if (queryStart == null) {
-            logger.error(curRunLogPrefix + "exception while preparing to measure statement execution time on " + getDesc(failover) + " caught in " + nanosToMillis(exceptionMoment - start) + " ms since the beginning of the preparation", e);
-        } else {
-            logger.error(curRunLogPrefix + "exception while measuring statement execution time on " + getDesc(failover) + " caught in " + nanosToMillis(exceptionMoment - queryStart) + " ms", e);
-        }
+
+    private long handlePreparedStatementExecuteException(Exception e, long start, boolean failover, String curRunLogPrefix) {
+        long duration = System.nanoTime() - start;
+        logger.error(curRunLogPrefix + "exception while measuring statement execution time on " + haDataSource.desc(failover) + " caught in " + nanosToMillis(duration) + " ms", e);
         return Long.MAX_VALUE;
+    }
+
+    private long executeWithTimeout(final Connection connection, final PreparedStatement preparedStatement, final boolean failover, final String curRunLogPrefix) throws InterruptedException {
+        try {
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            Future<Long> future = executor.submit(new Callable<Long>() {
+                public Long call() throws Exception {
+                    return executeWithoutTimeout(connection, preparedStatement, failover, curRunLogPrefix);
+                }
+            });
+            return execute(future, failover, curRunLogPrefix);
+        } catch (RuntimeException e) {
+            logger.error(curRunLogPrefix + "unexpected runtime exception while executing statement on " + haDataSource.desc(failover) + "; assuming that the data source is unavailable", e.getCause());
+            return Long.MAX_VALUE;
+        }
+    }
+
+    private long execute(Future<Long> future, boolean failover, String curRunLogPrefix) throws InterruptedException {
+        try {
+            return future.get(statementExecutionTimeout, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            logger.error(curRunLogPrefix + "unexpected exception while invoking future.get to executing statement on " + haDataSource.desc(failover) + "; assuming that the data source is unavailable", e.getCause());
+            return Long.MAX_VALUE;
+        } catch (TimeoutException e) {
+            logger.error(curRunLogPrefix + "could not execute statement on " + haDataSource.desc(failover) + " within " + connectionGettingTimeout + " second(s); assuming that the data source is unavailable", e);
+            future.cancel(false);
+            return Long.MAX_VALUE;
+        } catch (InterruptedException e) {
+            logger.info(curRunLogPrefix + "interrupted while invoking future.get to execute statement on " + haDataSource.desc(failover) + "; interrupting statement execution", e);
+            future.cancel(true);
+            throw e;
+        } catch (RuntimeException e) {
+            logger.error(curRunLogPrefix + "unexpected runtime exception while invoking future.get to execute statement on " + haDataSource.desc(failover) + "; assuming that the data source is unavailable", e);
+            future.cancel(false);
+            return Long.MAX_VALUE;
+        }
     }
 
     private PreparedStatement prepareStatement(Connection connection, boolean failover, String curRunLogPrefix) {
@@ -324,10 +377,12 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
                 }
                 return s;
             } catch (SQLException e) {
-                logger.error(curRunLogPrefix + "exception while preparing statement or setting query timeout for measuring execution time on " + getDesc(failover), e);
+                logger.error(curRunLogPrefix + "exception while preparing statement or setting query timeout for measuring execution time on " + haDataSource.desc(failover), e);
+                return null;
             }
+        } else {
+            return null;
         }
-        return null;
     }
 
     private Connection getConnection(final boolean failover, final String curRunLogPrefix) throws InterruptedException {
@@ -344,37 +399,33 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
 
     private Connection getConnectionWithTimeout(final boolean failover, final String curRunLogPrefix) throws InterruptedException {
         ExecutorService executor = Executors.newSingleThreadExecutor();
-        Future<Connection> future = executor.submit(new Callable<Connection>() {
-            public Connection call() {
-                try {
-                    return haDataSource.getConnection(failover, false, null, null, curRunLogPrefix);
-                } catch (SQLException e) {
-                    return null;
-                }
-            }
-        });
-        return getConnection(future, executor, failover, curRunLogPrefix);
+        CancellableConnectionGetter connectionGetter = new CancellableConnectionGetter(haDataSource, curRunLogPrefix, failover);
+        Future<Connection> future = executor.submit(connectionGetter);
+        return getConnection(future, connectionGetter, failover, curRunLogPrefix);
     }
 
-    private Connection getConnection(Future<Connection> future, ExecutorService executor, boolean failover, String curRunLogPrefix) throws InterruptedException {
+    private Connection getConnection(Future<Connection> future, CancellableConnectionGetter connectionGetter, boolean failover, String curRunLogPrefix) throws InterruptedException {
         try {
-            try {
-                return future.get(connectionGettingTimeout, TimeUnit.SECONDS);
-            } catch (ExecutionException e) {
-                logger.error(curRunLogPrefix + "exception while getting connection to " + getDesc(failover), e);
-                return null;
-            } catch (TimeoutException e) {
-                logger.error(curRunLogPrefix + "could not get connection to " + getDesc(failover) + " in " + connectionGettingTimeout + " second(s); assuming that the data source is unavailable", e);
-                return null;
-            }
-        } finally {
+            return future.get(connectionGettingTimeout, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            logger.error(curRunLogPrefix + "unexpected exception while getting (with timeout) connection to " + haDataSource.desc(failover), e.getCause());
+            return null;
+        } catch (TimeoutException e) {
+            logger.error(curRunLogPrefix + "could not get connection to " + haDataSource.desc(failover) + " within " + connectionGettingTimeout + " second(s); assuming that the data source is unavailable; cancelling connection creation", e);
+            connectionGetter.cancel();
             future.cancel(false);
-            executor.shutdown();
+            return null;
+        } catch (InterruptedException e) {
+            logger.info(curRunLogPrefix + "interrupted while getting connection to " + haDataSource.desc(failover) + "; interrupting connection creation", e);
+            connectionGetter.cancel();
+            future.cancel(true);
+            throw e;
+        } catch (RuntimeException e) {
+            logger.error(curRunLogPrefix + "unexpected runtime exception while invoking future.get (with timeout) to get connection to " + haDataSource.desc(failover), e);
+            connectionGetter.cancel();
+            future.cancel(false);
+            return null;
         }
-    }
-
-    private String getDesc(boolean failover) {
-        return (failover ? haDataSource.getFailoverDataSourceName() + " (failover" : haDataSource.getMainDataSourceName() + " (main") + " ds)";
     }
 
     private void close(String curRunLogPrefix, PreparedStatement preparedStatement, Connection connection, boolean failover) {
@@ -382,14 +433,18 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
             try {
                 preparedStatement.close();
             } catch (SQLException e) {
-                logger.error(curRunLogPrefix + "exception while closing prepared statement for " + getDesc(failover) + " after measuring the execution time", e);
+                logger.error(curRunLogPrefix + "exception while closing prepared statement for " + haDataSource.desc(failover) + " after measuring the execution time", e);
+            } catch (RuntimeException e) {
+                logger.error(curRunLogPrefix + "runtime exception while closing prepared statement for " + haDataSource.desc(failover) + " after measuring the execution time", e);
             }
         }
         if (connection != null) {
             try {
                 connection.close();
             } catch (SQLException e) {
-                logger.error(curRunLogPrefix + "exception while closing connection to " + getDesc(failover) + " after measuring the execution time", e);
+                logger.error(curRunLogPrefix + "exception while closing connection to " + haDataSource.desc(failover) + " after measuring the execution time", e);
+            } catch (RuntimeException e) {
+                logger.error(curRunLogPrefix + "runtime exception while closing connection to " + haDataSource.desc(failover) + " after measuring the execution time", e);
             }
         }
     }
@@ -433,6 +488,10 @@ public class LoadFailoverActivator extends TimerTask implements FailoverActivato
             throw new IllegalArgumentException("statementExecutionTimeout must not be negative");
         }
         this.statementExecutionTimeout = statementExecutionTimeout;
+    }
+
+    public void setStatementExecutionTimeoutForced(boolean statementExecutionTimeoutForced) {
+        this.statementExecutionTimeoutForced = statementExecutionTimeoutForced;
     }
 
     public void setStatementExecutionTimeLimitTriggeringFailoverMillis(int statementExecutionTimeLimitTriggeringFailoverMillis) {

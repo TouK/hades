@@ -158,9 +158,9 @@ public class HaDataSource<T extends FailoverActivator> implements DataSource, Ha
     /**
      * Delegates to {@link javax.sql.DataSource#getConnection() getConnection()} (if <code>withAuth</code> is
      * <code>false</code>) or to {@link javax.sql.DataSource#getConnection(String, String) getConnection(username, password)}
-     * (if <code>withAuth</code> is <code>true</code>). The time of the above invocation (even if ended with
-     * <code>SQLException</code>) is measured and logged in debug mode (the log is prefixed with <code>logPrefix</code>
-     * parameter).
+     * (if <code>withAuth</code> is <code>true</code>). The time of the above invocation is measured and logged in
+     * debug mode (the log is prefixed with <code>logPrefix</code> parameter) or error mode if the invocation ends
+     * with an exception.
      * <p>
      * This method was created for those failover activators that need to get connections from the main data source
      * and the failover data source to decide whether failover should be active or not.
@@ -176,29 +176,34 @@ public class HaDataSource<T extends FailoverActivator> implements DataSource, Ha
     public Connection getConnection(boolean failover, boolean withAuth, String username, String password, String logPrefix) throws SQLException {
         DataSource ds = failover ? failoverDataSource : mainDataSource;
         Connection connection;
-        long timeElapsedNanos;
         long start = System.nanoTime();
         try {
-            if (!withAuth) {
-                connection = ds.getConnection();
-            } else {
-                connection = ds.getConnection(username, password);
-            }
-            timeElapsedNanos = System.nanoTime() - start;
-            if (logger.isDebugEnabled()) {
-                logger.debug(logPrefix + "successfully got a connection" + (withAuth ? " for username " + username : "") + " to " + (failover ? failoverDataSourceName + " (failover": mainDataSourceName + " (main") + " ds) in " + nanosToMillis(timeElapsedNanos));
-            }
-            return connection;
+            connection = withAuth ? ds.getConnection(username, password) : ds.getConnection();
         } catch (SQLException e) {
-            timeElapsedNanos = System.nanoTime() - start;
-            logger.error(logPrefix + "exception while getting a connection" + (withAuth ? " for username " + username : "") + " to " + (failover ? failoverDataSourceName + " (failover" : mainDataSourceName + " (main") + " ds) caught in " + nanosToMillis(timeElapsedNanos), e);
-            throw e;
+            throw handleException(e, start, failover,  withAuth, username, logPrefix);
+        } catch (RuntimeException e) {
+            throw handleException(e, start, failover,  withAuth, username, logPrefix);
         }
+        long timeElapsedNanos = System.nanoTime() - start;
+        if (logger.isDebugEnabled()) {
+            logger.debug(logPrefix + "successfully got a connection" + (withAuth ? " for username " + username : "") + " to " + (failover ? failoverDataSourceName + " (failover": mainDataSourceName + " (main") + " ds) in " + nanosToMillis(timeElapsedNanos));
+        }
+        return connection;
+    }
+
+    private <T extends Throwable> T handleException(T e, long start, boolean failover, boolean withAuth, String username, String logPrefix) throws T {
+        long timeElapsedNanos = System.nanoTime() - start;
+        logger.error(logPrefix + "exception while getting a connection" + (withAuth ? " for username " + username : "") + " to " + (failover ? failoverDataSourceName + " (failover" : mainDataSourceName + " (main") + " ds) caught in " + nanosToMillis(timeElapsedNanos), e);
+        return e;
     }
 
     @Override
     public String toString() {
         return mainDataSourceName + "/" + failoverDataSourceName;
+    }
+
+    public String desc(boolean failover) {
+        return (failover ? getFailoverDataSourceName() + " (failover" : getMainDataSourceName() + " (main") + " ds)";
     }
 
     private String nanosToMillis(long l) {
