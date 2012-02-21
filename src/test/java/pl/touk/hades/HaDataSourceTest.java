@@ -26,6 +26,7 @@ import java.sql.SQLException;
 import java.sql.Connection;
 
 import pl.touk.hades.load.LoadFailoverActivator;
+import pl.touk.hades.load.StmtExecTimeCalculatorImpl;
 
 /**
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
@@ -112,8 +113,10 @@ public class HaDataSourceTest {
         ds.setFailoverDataSource(createMockDataSource("failoverDs", false, 0));
         LoadFailoverActivator activator = new LoadFailoverActivator();
         ds.setFailoverActivator(activator);
+        StmtExecTimeCalculatorImpl loadCalculator = new StmtExecTimeCalculatorImpl();
+        loadCalculator.setConnectionGettingTimeout(1);
+        activator.setStmtExecTimeCalculator(loadCalculator);
         activator.init(ds);
-        activator.setConnectionGettingTimeout(1);
         activator.run();
     }
 
