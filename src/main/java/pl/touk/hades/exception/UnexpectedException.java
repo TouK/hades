@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 TouK
+ * Copyright 2012 TouK
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,17 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.hades.load;
+package pl.touk.hades.exception;
 
 /**
- * Descriptive (i.e. not including numeric values) load level of a database.
- *
- * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
+ * @author <a href="mailto:msk@touk.pl">Michał Sokołowski</a>
  */
-public enum LoadLevel {
-    low,
-    medium,
-    high,
-    exceptionWhileMeasuring,
-    notMeasuredYet
+public class UnexpectedException extends LocalLoadMeasuringException {
+    public UnexpectedException(String logPrefix, Exception e) {
+        super(logPrefix, e);
+    }
+
+    public UnexpectedException(String message, RuntimeException e) {
+        super(message, e);
+    }
+
+    public UnexpectedException(String logPrefix) {
+        super(logPrefix);
+    }
 }

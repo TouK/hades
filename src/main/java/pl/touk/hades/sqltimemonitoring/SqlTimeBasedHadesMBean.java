@@ -13,17 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.hades.load;
+package pl.touk.hades.sqltimemonitoring;
+
+import pl.touk.hades.HadesMBean;
 
 /**
- * Descriptive (i.e. not including numeric values) load level of a database.
+ * An interface implemented by {@link SqlTimeBasedHades} that enables jmx access to the
+ * data source. It extends {@link pl.touk.hades.HadesMBean} simply by adding some method
+ * specific to load measuring.
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public enum LoadLevel {
-    low,
-    medium,
-    high,
-    exceptionWhileMeasuring,
-    notMeasuredYet
+public interface SqlTimeBasedHadesMBean extends HadesMBean {
+
+    String getFailoverLoad();
+    String getMainLoad();
+    String getLoadLog();
 }

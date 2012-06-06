@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xsi:schemaLocation="
+            http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+            http://www.springframework.org/schema/jdbc  http://www.springframework.org/schema/jdbc/spring-jdbc.xsd
+            http://www.springframework.org/schema/util  http://www.springframework.org/schema/util/spring-util-2.0.xsd
+       ">
+
+    <bean id="DHLITE" class="org.mockito.Mockito" factory-method="mock">
+        <constructor-arg value="javax.sql.DataSource"/>
+    </bean>
+
+    <bean id="DH" class="org.mockito.Mockito" factory-method="mock">
+        <constructor-arg value="javax.sql.DataSource"/>
+    </bean>
+
+    <bean id="NASA" class="org.mockito.Mockito" factory-method="mock">
+        <constructor-arg value="javax.sql.DataSource"/>
+    </bean>
+
+    <bean id="quartzDs" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+        <property name="driverClassName"        value="com.mysql.jdbc.Driver"/>
+        <property name="url"                    value="jdbc:mysql://localhost:3306/quartz"/>
+        <property name="username"               value="quartz"/>
+        <property name="password"               value="quartz"/>
+        <property name="defaultAutoCommit"      value="false"/>
+        <property name="maxActive"              value="5"/>
+        <property name="maxIdle"                value="5"/>
+        <property name="poolPreparedStatements" value="true"/>
+        <property name="validationQuery"        value="SELECT CURRENT_TIMESTAMP" />
+    </bean>
+
+    <jdbc:initialize-database data-source="quartzDs">
+        <jdbc:script location="classpath:integration/quartzAndHadesTables.sql"/>
+    </jdbc:initialize-database>
+
+    <bean id="hadesA_on_smx11_at_js22_7" class="pl.touk.hades.sqltimemonitoring.SqlTimeBasedHades">
+        <property name="name" value="hadesA_on_smx11_at_js22_7"/>
+        <property name="mainDataSource" ref="DHLITE"/>
+        <property name="failoverDataSource" ref="DH"/>
+        <property name="mainDataSourceName" value="DHLITE"/>
+        <property name="failoverDataSourceName" value="DH"/>
+        <property name="trigger" ref="hadesA_on_smx11_at_js22_7_trigger"/>
+    </bean>
+
+    <bean id="hadesB_on_smx11_at_js22_7" class="pl.touk.hades.sqltimemonitoring.SqlTimeBasedHades">
+        <property name="name" value="hadesB_on_smx11_at_js22_7"/>
+        <property name="mainDataSource" ref="NASA"/>
+        <property name="failoverDataSource" ref="DH"/>
+        <property name="mainDataSourceName" value="NASA"/>
+        <property name="failoverDataSourceName" value="DH"/>
+        <property name="trigger" ref="hadesB_on_smx11_at_js22_7_trigger"/>
+    </bean>
+
+    <bean id="sqlTimeRepo" class="pl.touk.hades.sqltimemonitoring.DbSqlTimeRepo">
+        <property name="dataSource" ref="quartzDs"/>
+    </bean>
+
+    <bean id="sqlTimeCalculator" class="pl.touk.hades.sqltimemonitoring.SqlTimeCalculatorImpl">
+        <property name="sql" value="SELECT CURRENT_TIMESTAMP"/>
+        <property name="sqlExecutionTimeout" value="2"/>
+        <property name="sqlExecutionTimeoutForcingPeriodMillis" value="500"/>
+        <property name="connectionGettingTimeout" value="1"/>
+        <property name="borrowExistingMatchingResultIfYoungerThanMillis" value="3000"/>
+        <property name="sqlTimeRepo" ref="sqlTimeRepo"/>
+    </bean>
+
+    <util:properties id="hadesProps_js22_7" location="classpath:integration/quartz_js22_7.properties"/>
+
+    <bean id="schedulerFactory_js22_7" class="org.quartz.impl.StdSchedulerFactory">
+        <constructor-arg name="props" ref="hadesProps_js22_7"/>
+    </bean>
+
+    <bean id="scheduler" factory-bean="schedulerFactory_js22_7" factory-method="getScheduler"/>
+
+    <bean id="hadesA_on_smx11_at_js22_7_trigger" class="pl.touk.hades.sqltimemonitoring.SqlTimeBasedTriggerImpl">
+        <property name="sqlTimeTriggeringFailoverMillis" value="600"/>
+        <property name="sqlTimeTriggeringFailbackMillis" value="200"/>
+        <property name="sqlTimesIncludedInAverage" value="5"/>
+        <property name="exceptionsIgnoredAfterRecovery" value="true"/>
+        <property name="recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery" value="false"/>
+        <property name="sqlTimeCalculator" ref="sqlTimeCalculator"/>
+        <property name="cron" value="0/4 * * * * ?"/>
+        <property name="scheduler" ref="scheduler"/>
+        <property name="includeDebuggingInfoInEveryLog" value="true"/>
+    </bean>
+
+    <bean id="hadesB_on_smx11_at_js22_7_trigger" class="pl.touk.hades.sqltimemonitoring.SqlTimeBasedTriggerImpl">
+        <property name="sqlTimeTriggeringFailoverMillis" value="600"/>
+        <property name="sqlTimeTriggeringFailbackMillis" value="200"/>
+        <property name="sqlTimesIncludedInAverage" value="5"/>
+        <property name="exceptionsIgnoredAfterRecovery" value="true"/>
+        <property name="recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery" value="false"/>
+        <property name="sqlTimeCalculator" ref="sqlTimeCalculator"/>
+        <property name="cron" value="0/4 * * * * ?"/>
+        <property name="scheduler" ref="scheduler"/>
+        <property name="includeDebuggingInfoInEveryLog" value="true"/>
+    </bean>
+
+</beans>
