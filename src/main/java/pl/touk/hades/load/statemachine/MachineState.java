@@ -15,42 +15,41 @@
  */
 package pl.touk.hades.load.statemachine;
 
+import pl.touk.hades.load.Load;
 import pl.touk.hades.load.LoadLevel;
-import pl.touk.hades.load.HadesLoad;
 
 import java.io.Serializable;
 
 /**
- * An immutable state of a {@link Machine} consisting of a {@link HadesLoad} and a boolean indicating whether failover is active.
+ * An immutable state of a {@link Machine} consisting of a {@link pl.touk.hades.load.Load} and a boolean indicating whether failover is active.
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
 public class MachineState implements Serializable {
 
     private final boolean failoverActive;
-    private final HadesLoad load;
+    private final Load load;
 
-    public MachineState(boolean failoverActive, HadesLoad load) {
-        if (load == null) {
-            throw new IllegalArgumentException("pair must not be null");
-        }
+    public MachineState(boolean failoverActive, Load load) {
+        this.failoverActive = failoverActive;
+        this.load = load;
+    }
+
+    private MachineState(Load load, boolean failoverActive) {
         this.failoverActive = failoverActive;
         this.load = load;
     }
 
     public MachineState(boolean failoverActive, LoadLevel mainDbLoadLevel, LoadLevel failoverDbLoadLevel) {
-        this.failoverActive = failoverActive;
-        this.load = new HadesLoad(mainDbLoadLevel, failoverDbLoadLevel);
+        this(new Load(mainDbLoadLevel, failoverDbLoadLevel), failoverActive);
     }
 
     public MachineState(boolean failoverActive, LoadLevel loadLevel, boolean mainDbLoadHigher) {
-        this.failoverActive = failoverActive;
-        this.load = new HadesLoad(loadLevel, mainDbLoadHigher);
+        this(new Load(loadLevel, mainDbLoadHigher), failoverActive);
     }
 
     public MachineState(boolean failoverActive, LoadLevel loadLevel) {
-        this.failoverActive = failoverActive;
-        this.load = new HadesLoad(loadLevel);
+        this(new Load(loadLevel), failoverActive);
     }
 
     @Override
@@ -77,7 +76,7 @@ public class MachineState implements Serializable {
         return failoverActive;
     }
 
-    public HadesLoad getLoad() {
+    public Load getLoad() {
         return load;
     }
 

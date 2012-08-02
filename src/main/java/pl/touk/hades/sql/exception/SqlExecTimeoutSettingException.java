@@ -13,21 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.hades.exception;
+package pl.touk.hades.sql.exception;
+
+import pl.touk.hades.exception.LoadMeasuringException;
 
 /**
  * @author <a href="mailto:msk@touk.pl">Michał Sokołowski</a>
  */
-public class UnexpectedException extends LoadMeasuringException {
-    public UnexpectedException(String logPrefix, Throwable e) {
-        super(logPrefix, e);
-    }
-
-    public UnexpectedException(String message, RuntimeException e) {
-        super(message, e);
-    }
-
-    public UnexpectedException(String logPrefix) {
+public class SqlExecTimeoutSettingException extends LoadMeasuringException {
+    public SqlExecTimeoutSettingException(String logPrefix) {
         super(logPrefix);
     }
 }

@@ -20,7 +20,7 @@ package pl.touk.hades.load.statemachine;
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public class Transition {
+class Transition {
 
     private final MachineState sourceState;
     private final MachineState destinationState;

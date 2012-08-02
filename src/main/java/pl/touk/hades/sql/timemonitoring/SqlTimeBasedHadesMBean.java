@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 TouK
+ * Copyright 2011 TouK
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,21 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package pl.touk.hades.exception;
+package pl.touk.hades.sql.timemonitoring;
+
+import pl.touk.hades.HadesMBean;
 
 /**
- * @author <a href="mailto:msk@touk.pl">Michał Sokołowski</a>
+ * An interface implemented by {@link SqlTimeBasedHades} that enables jmx access to the
+ * data source. It extends {@link pl.touk.hades.HadesMBean} simply by adding some method
+ * specific to load measuring.
+ *
+ * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public class UnexpectedException extends LoadMeasuringException {
-    public UnexpectedException(String logPrefix, Throwable e) {
-        super(logPrefix, e);
-    }
+public interface SqlTimeBasedHadesMBean extends HadesMBean {
 
-    public UnexpectedException(String message, RuntimeException e) {
-        super(message, e);
-    }
-
-    public UnexpectedException(String logPrefix) {
-        super(logPrefix);
-    }
+    String getFailoverLoad();
+    String getMainLoad();
+    String getLoadLog();
 }

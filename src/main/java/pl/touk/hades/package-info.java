@@ -7,7 +7,7 @@
  * Implementations of {@link Trigger} are responsible for this. Every HA data source is
  * associated with such an implementation which activates failover (switch from the main data source to the failover
  * one) or failback (the opposite switch) when some conditions are met. The conditions may vary between implementations.
- * For example {@link pl.touk.hades.sqltimemonitoring.SqlTimeBasedTriggerImpl} activates failover when execution time
+ * For example {@link pl.touk.hades.sql.timemonitoring.SqlTimeBasedTriggerImpl} activates failover when execution time
  * of some sql on the main data source is too big.
  */
 package pl.touk.hades;

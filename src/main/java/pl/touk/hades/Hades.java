@@ -19,12 +19,15 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.io.PrintWriter;
-import java.text.DecimalFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pl.touk.hades.exception.ConnectionGettingException;
-import pl.touk.hades.Trigger;
+import pl.touk.hades.sql.exception.ConnException;
 
 /**
  * A data source which offers high-availability (HA) by enclosing two real data sources - the main one and the failover
@@ -87,36 +90,56 @@ import pl.touk.hades.Trigger;
  */
 public class Hades<T extends Trigger> implements DataSource, HadesMBean {
 
-    static private final Logger logger = LoggerFactory.getLogger(Hades.class);
+    private final static Logger logger = LoggerFactory.getLogger(Hades.class);
 
-    static private final String errorMsg = "this class wraps two data sources so this method is irrelevant as it does not give the possbility to specify which data source should it operate on";
+    private final static String errorMsg = "this class wraps two data sources so this method is irrelevant as it does not give the possbility to specify which data source should it operate on";
 
-    static public final long nanosInMillisecond = 1000000L;
+    private final static int notPinned = 0;
+    private final static int mainPinned = 1;
+    private final static int failoverPinned = 2;
 
-    public static final String defaultMainDataSourceName = "main data source";
-    public static final String defaultFailoverDataSourceName = "failover data source";
+    private final DataSource mainDataSource;
+    private final DataSource failoverDataSource;
+    private final String mainDsName;
+    private final String failoverDsName;
+    private final String mainDsNameFixedWidth;
+    private final String failoverDsNameFixedWidth;
+    private final AtomicReference<T> trigger;
+    private final AtomicInteger failoverDataSourcePinned;
 
-    private String name;
+    public Hades(DataSource mainDataSource, DataSource failoverDataSource, String mainDsName, String failoverDsName) {
+        Utils.assertNotNull(mainDataSource, "mainDataSource");
+        Utils.assertNotNull(failoverDataSource, "failoverDataSource");
+        Utils.assertNonEmpty(mainDsName, "mainDsName");
+        Utils.assertNonEmpty(failoverDsName, "failoverDsName");
 
-    private DataSource mainDataSource;
-    private DataSource failoverDataSource;
-    private String mainDataSourceName = defaultMainDataSourceName;
-    private String failoverDataSourceName = defaultFailoverDataSourceName;
+        this.mainDataSource = mainDataSource;
+        this.failoverDataSource = failoverDataSource;
+        this.mainDsName = mainDsName;
+        this.failoverDsName = failoverDsName;
 
-    private T trigger;
+        int width = Math.max(mainDsName.length(), failoverDsName.length());
+        this.mainDsNameFixedWidth = appendSpaces(mainDsName, width);
+        this.failoverDsNameFixedWidth = appendSpaces(failoverDsName, width);
 
-    private final String pinGuard = "";
-    private Boolean failoverDataSourcePinned = null;
+        this.trigger = new AtomicReference<T>();
+        this.failoverDataSourcePinned = new AtomicInteger(notPinned);
+    }
 
-    private final DecimalFormat decimalFormat = new DecimalFormat("#0.000 ms");
+    public void init(T trigger) {
+        Utils.assertNotNull(trigger, "trigger");
+        Utils.assertSame(trigger.getHades(), this, "trigger.hades != this; ensure that Hades association with a Trigger is one-to-one");
+        if (!this.trigger.compareAndSet(null, trigger)) {
+            throw new IllegalStateException("hades already associated with a trigger");
+        }
+    }
 
-    /**
-     * Associates the failover activator set by {@link #setTrigger(Trigger)} with this HA data
-     * source. This method simply invokes
-     * {@link #getTrigger ()}.{@link Trigger#init(Hades) init(this)}.
-     */
-    public void init() {
-        getTrigger().init(this);
+    private String appendSpaces(String s, int width) {
+        StringBuilder sb = new StringBuilder(s != null ? s : "");
+        for (int i = sb.length(); i < width; i++) {
+            sb.append(' ');
+        }
+        return sb.toString();
     }
 
     /**
@@ -135,7 +158,7 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
      * @throws SQLException if getting a connection from one of the two enclosed data sources throws an exception
      */
     public Connection getConnection() throws SQLException, RuntimeException {
-        return getConnection(failoverEffectivelyActive(), false, null, null, "");
+        return getConnection("", failoverEffectivelyActive(), false, null, null, true);
     }
 
     /**
@@ -156,23 +179,24 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
      * @throws SQLException if getting a connection from one of the two enclosed data sources throws an exception
      */
     public Connection getConnection(String username, String password) throws SQLException, RuntimeException {
-        return getConnection(failoverEffectivelyActive(), true, username, password, "");
+        return getConnection("", failoverEffectivelyActive(), true, username, password, true);
     }
 
     /**
-     * Delegates to {@link #getConnection(boolean, boolean, String, String, String)} simply surrounding possible
-     * thrown exceptions by {@link ConnectionGettingException}.
+     * Delegates to {@link #getConnection(String, boolean, boolean, String, String, boolean)} simply surrounding possible
+     * thrown exceptions by {@link pl.touk.hades.sql.exception.ConnException}.
      *
-     * @param failover whether to return a connection from the failover data source or from the main data source
+     *
      * @param logPrefix text used as a log prefix
+     * @param failover whether to return a connection from the failover data source or from the main data source
      * @return connection from the specified data source
-     * @throws ConnectionGettingException if the specified data source throws the runtime exception
+     * @throws pl.touk.hades.sql.exception.ConnException if the specified data source throws the runtime exception
      */
-    public Connection getConnection(boolean failover, String logPrefix) throws ConnectionGettingException {
+    public Connection getConnection(String logPrefix, boolean failover) throws ConnException {
         try {
-            return getConnection(failover, false, null, null, logPrefix);
+            return getConnection(logPrefix, failover, false, null, null, false);
         } catch (Exception e) {
-            throw new ConnectionGettingException(logPrefix, e);
+            throw new ConnException(logPrefix, e);
         }
     }
 
@@ -186,59 +210,91 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
      * This method was created for those failover activators that need to get connections from the main data source
      * and the failover data source to decide whether failover should be active or not.
      *
+     *
+     *
+     * @param logPrefix text used as a log prefix
      * @param failover whether to return a connection from the failover data source or from the main data source
-     * @param withAuth whether to delegate to {@link DataSource#getConnection(String, String)} or to {@link DataSource#getConnection()}
+     * @param withAuth whether to delegate to {@link javax.sql.DataSource#getConnection(String, String)} or to {@link javax.sql.DataSource#getConnection()}
      * @param username username for which the connection should be returned (ignored if <code>withAuth</code> is <code>false</code>)
      * @param password password for the given <code>username</code> (ignored if <code>withAuth</code> is <code>false</code>)
-     * @param logPrefix text used as a log prefix
+     * @param informTrigger d
      * @return connection from the specified data source
      * @throws SQLException if the specified data source throws the exception
      * @throws RuntimeException if the specified data source throws the runtime exception
      */
-    public Connection getConnection(boolean failover, boolean withAuth, String username, String password, String logPrefix) throws SQLException, RuntimeException {
+    private Connection getConnection(String logPrefix, boolean failover, boolean withAuth, String username, String password, boolean informTrigger) throws SQLException, RuntimeException {
         DataSource ds = failover ? failoverDataSource : mainDataSource;
         Connection connection;
         long start = System.nanoTime();
         try {
             connection = withAuth ? ds.getConnection(username, password) : ds.getConnection();
         } catch (SQLException e) {
-            throw handleException(e, start, failover,  withAuth, username, logPrefix);
+            throw handleException(logPrefix, e, start, connDesc(withAuth, username, failover), failover, informTrigger);
         } catch (RuntimeException e) {
-            throw handleException(e, start, failover,  withAuth, username, logPrefix);
+            throw handleException(logPrefix, e, start, connDesc(withAuth, username, failover), failover, informTrigger);
         }
-        long timeElapsedNanos = System.nanoTime() - start;
-        if (logger.isDebugEnabled()) {
-            logger.debug(logPrefix + "successfully got a connection" + (withAuth ? " for username " + username : "") + " to " + (failover ? failoverDataSourceName + " (failover": mainDataSourceName + " (main") + " ds) in " + nanosToMillis(timeElapsedNanos));
+        try {
+            long timeElapsedNanos = System.nanoTime() - start;
+            if (informTrigger) {
+                connectionRequested(true, failover, timeElapsedNanos);
+            }
+            if (logger.isDebugEnabled()) {
+                logger.debug(logPrefix + "successfully got" + connDesc(withAuth, username, failover) + "in " + Utils.nanosToMillisAsStr(timeElapsedNanos));
+            }
+            return connection;
+        } catch (RuntimeException e) {
+            try {
+                connection.close();
+            } catch (SQLException e1) {
+                logger.error(logPrefix + "successfully got" + connDesc(withAuth, username, failover) + "but unexpected exception occurred (logged below); after that an attempt to close the connection resulted in another exception", e1);
+            } finally {
+                logger.error(logPrefix + "successfully got" + connDesc(withAuth, username, failover) + "but unexpected exception occurred", e);
+            }
+            throw e;
         }
-        return connection;
     }
 
-    private <T extends Throwable> T handleException(T e, long start, boolean failover, boolean withAuth, String username, String logPrefix) throws T {
+    private String connDesc(boolean withAuth, String username, boolean failover) {
+        return  " a connection" + (withAuth ? " for username " + username : "") + " to " + (failover ? failoverDsName + " (failover" : mainDsName + " (main") + " ds) ";
+    }
+
+    private <T extends Throwable> T handleException(String logPrefix, T e, long start, String connDesc, boolean failover, boolean informTrigger) throws T {
         long timeElapsedNanos = System.nanoTime() - start;
-        logger.error(logPrefix + "exception while getting a connection" + (withAuth ? " for username " + username : "") + " to " + (failover ? failoverDataSourceName + " (failover" : mainDataSourceName + " (main") + " ds) caught in " + nanosToMillis(timeElapsedNanos), e);
+        if (informTrigger) {
+            connectionRequested(false, failover, timeElapsedNanos);
+        }
+        logger.error(logPrefix + "exception while getting " + connDesc + "caught in " + Utils.nanosToMillisAsStr(timeElapsedNanos), e);
         return e;
+    }
+
+    private void connectionRequested(boolean b, boolean failover, long timeElapsedNanos) {
+        try {
+            getTrigger().connectionRequested(b, failover, timeElapsedNanos);
+        } catch (NoTriggerException e) {
+        }
     }
 
     @Override
     public String toString() {
-        return mainDataSourceName + "/" + failoverDataSourceName;
+        return mainDsName + "/" + failoverDsName;
     }
 
     public String desc(boolean failover) {
-        return (failover ? getFailoverDataSourceName() + " (failover" : getMainDataSourceName() + " (main") + " ds)";
-    }
-
-    private String nanosToMillis(long l) {
-        return decimalFormat.format(((double) l) / nanosInMillisecond);
+        return (failover ? getFailoverDsName() + " (failover" : getMainDsName() + " (main") + " ds)";
     }
 
     private boolean failoverEffectivelyActive() {
-        synchronized (pinGuard) {
-            if (failoverDataSourcePinned != null) {
-                return failoverDataSourcePinned;
+        Boolean b = getFailoverDataSourcePinned();
+        if (b == null) {
+            try {
+                return getTrigger().isFailoverActive();
+            } catch (NoTriggerException e) {
+                logger.warn(e.getMessage());
+                return false;
             }
+        } else {
+            return b;
         }
-        return trigger.isFailoverActive();
     }
 
     /**
@@ -246,9 +302,7 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
      * will get connections from the main data source.
      */
     public void pinMainDataSource() {
-        synchronized (pinGuard) {
-            failoverDataSourcePinned = false;
-        }
+        failoverDataSourcePinned.set(mainPinned);
     }
 
     /**
@@ -256,9 +310,7 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
      * will get connections from the failover data source.
      */
     public void pinFailoverDataSource() {
-        synchronized (pinGuard) {
-            failoverDataSourcePinned = true;
-        }
+        failoverDataSourcePinned.set(failoverPinned);
     }
 
     /**
@@ -267,9 +319,7 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
      * failover is active.
      */
     public void removePin() {
-        synchronized (pinGuard) {
-            failoverDataSourcePinned = null;
-        }
+        failoverDataSourcePinned.set(notPinned);
     }
 
     /**
@@ -280,9 +330,7 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
      * @return <code>true</code> if pin is enabled and <code>false</code> otherwise
      */
     public boolean getPinEnabled() {
-        synchronized (pinGuard) {
-            return failoverDataSourcePinned != null;
-        }
+        return failoverDataSourcePinned.get() != notPinned;
     }
 
     /**
@@ -294,8 +342,11 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
      * @return the pin status of this HA data source
      */
     public Boolean getFailoverDataSourcePinned() {
-        synchronized (pinGuard) {
-            return failoverDataSourcePinned;
+        int i = failoverDataSourcePinned.get();
+        if (notPinned == i) {
+            return null;
+        } else {
+            return failoverPinned == i;
         }
     }
 
@@ -316,16 +367,8 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
         return failoverEffectivelyActive();
     }
 
-    /**
-     * Returns the name of the currently used data source. The currently used data source is determined as in
-     * {@link #isFailoverActive()}. The main data source name can be set in {@link #setMainDataSourceName(String)}.
-     * The failover data source name can be set in {@link #setFailoverDataSourceName(String)}. The default names
-     * are {@link #defaultMainDataSourceName} and {@link #defaultFailoverDataSourceName}.
-     *
-     * @return the name of the currently used data source
-     */
     public String getActiveDataSourceName() {
-        return failoverEffectivelyActive() ? getFailoverDataSourceName() : getMainDataSourceName();
+        return failoverEffectivelyActive() ? getFailoverDsName() : getMainDsName();
     }
 
     /**
@@ -344,14 +387,6 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
      */
     public PrintWriter getLogWriter() throws SQLException {
         throw new UnsupportedOperationException(errorMsg);
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getName() {
-        return name;
     }
 
     /**
@@ -377,93 +412,42 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
         failoverDataSource.setLogWriter(printWriter);
     }
 
-    /**
-     * Throws <code>UnsupportedOperationException</code>.
-     *
-     * @throws UnsupportedOperationException always
-     */
     public <T> T unwrap(Class<T> iface) throws SQLException {
         throw new UnsupportedOperationException(errorMsg);
     }
 
-    /**
-     * Throws <code>UnsupportedOperationException</code>.
-     *
-     * @throws UnsupportedOperationException always
-     */
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
         throw new UnsupportedOperationException(errorMsg);
     }
 
-    /**
-     * Gets the failover activator set by {@link #setTrigger(Trigger)}.
-     *
-     * @return failover activator controlling this HA data source
-     */
-    protected T getTrigger() {
-        return trigger;
+    public T getTrigger() throws NoTriggerException {
+        T t = trigger.get();
+        if (t != null) {
+            return t;
+        } else {
+            throw new NoTriggerException(this);
+        }
     }
 
-    /**
-     * Sets the failover data source.
-     *
-     * @param failoverDataSource failover data source
-     */
-    public void setFailoverDataSource(DataSource failoverDataSource) {
-        this.failoverDataSource = failoverDataSource;
+    public String getFailoverDsName() {
+        return failoverDsName;
     }
 
-    /**
-     * Sets the main data source.
-     *
-     * @param mainDataSource main data source
-     */
-    public void setMainDataSource(DataSource mainDataSource) {
-        this.mainDataSource = mainDataSource;
+    public String getMainDsName() {
+        return mainDsName;
     }
 
-    /**
-     * Sets the name of the failover data source.
-     *
-     * @param failoverDataSourceName name of the failover data source
-     */
-    public void setFailoverDataSourceName(String failoverDataSourceName) {
-        this.failoverDataSourceName = failoverDataSourceName;
+    public String getDsName(boolean failover) {
+        return getDsName(failover, false);
     }
 
-    /**
-     * Gets the name of the failover data source. The name is used in logs.
-     *
-     * @return name of the failover data source
-     */
-    public String getFailoverDataSourceName() {
-        return failoverDataSourceName;
+    public String getDsName(boolean failover, boolean fixedWidth) {
+        return failover ? (fixedWidth ? failoverDsNameFixedWidth : failoverDsName) : (fixedWidth ? mainDsNameFixedWidth : mainDsName);
     }
 
-    /**
-     * Sets the name of the main data source.
-     *
-     * @param mainDataSourceName name of the main data source
-     */
-    public void setMainDataSourceName(String mainDataSourceName) {
-        this.mainDataSourceName = mainDataSourceName;
-    }
-
-    /**
-     * Gets the name of the main data source. The name is used in logs.
-     *
-     * @return name of the main data source
-     */
-    public String getMainDataSourceName() {
-        return mainDataSourceName;
-    }
-
-    /**
-     * Sets the failover activator that will control this HA data source.
-     *
-     * @param trigger failover activator that should control this HA data source
-     */
-    public void setTrigger(T trigger) {
-        this.trigger = trigger;
+    public static class NoTriggerException extends Exception {
+        public NoTriggerException(Hades hades) {
+            super("currently there is no trigger associated with Hades " + hades + "; if this situation lasts longer than couple of minutes then it might be an error - such situation is normal only during initialization");
+        }
     }
 }

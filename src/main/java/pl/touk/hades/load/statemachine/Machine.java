@@ -18,14 +18,17 @@ package pl.touk.hades.load.statemachine;
 import static pl.touk.hades.load.LoadLevel.*;
 import static pl.touk.hades.load.LoadLevel.exceptionWhileMeasuring;
 import static pl.touk.hades.load.LoadLevel.notMeasuredYet;
-import pl.touk.hades.load.HadesLoad;
+
+import pl.touk.hades.Utils;
+import pl.touk.hades.load.Load;
+import pl.touk.hades.load.LoadLevel;
 
 import java.util.*;
 
 /**
  * A deterministic finite-state machine that can be used to control failover activation.
  * States are of type {@link MachineState}. The current state of the machine holds the current state of failover activation.
- * When an input symbol <code>L</code> of type {@link HadesLoad}
+ * When an input symbol <code>L</code> of type {@link pl.touk.hades.load.Load}
  * is provided a {@link pl.touk.hades.load.statemachine.Transition} <code>T</code> is made such that <code>T.sourceState</code> is equal to the current state,
  * <code>T.destinationState.load</code> is equal to <code>L</code> and <code>T</code> is among possible transitions
  * for this machine (possible transition are specified in the constructor).
@@ -42,7 +45,7 @@ public class Machine {
 
     public static final MachineState initialState = new MachineState(false, notMeasuredYet);
 
-    private final Map<MachineState, Map<HadesLoad, Boolean>> transitions = new HashMap<MachineState, Map<HadesLoad, Boolean>>();
+    private final Map<MachineState, Map<Load, Boolean>> transitions = new HashMap<MachineState, Map<Load, Boolean>>();
 
     public static Machine createStateMachine() {
         ArrayList<Transition> transitions = new ArrayList<Transition>();
@@ -142,10 +145,10 @@ public class Machine {
     public Machine(List<Transition> transitionList, MachineState start) {
         for (Transition t: transitionList) {
             if (!transitions.containsKey(t.getSourceState())) {
-                transitions.put(t.getSourceState(), new HashMap<HadesLoad, Boolean>());
+                transitions.put(t.getSourceState(), new HashMap<Load, Boolean>());
             }
             if (transitions.get(t.getSourceState()).containsKey(t.getDestinationState().getLoad())) {
-                HadesLoad load = t.getDestinationState().getLoad();
+                Load load = t.getDestinationState().getLoad();
                 boolean failoverActive = transitions.get(t.getSourceState()).get(load);
                 if (failoverActive != t.getDestinationState().isFailoverActive()) {
                     throw new IllegalArgumentException("transitionList contains two conflicting transitions");
@@ -169,8 +172,13 @@ public class Machine {
      * @param load input symbol that determines the transition
      * @return state after the transition
      */
-    public MachineState transition(MachineState fromState, HadesLoad load) {
-        Map<HadesLoad, Boolean> possibleTransitions = getPossibleTransitions(fromState);
+    public MachineState transition(MachineState fromState, Load load) {
+        Utils.assertNotNull(fromState, "fromState");
+        Utils.assertNotNull(load, "load");
+        ensureNoReturnToNotMeasuredYet(fromState.getLoad().getMainDb(), load.getMainDb(), false);
+        ensureNoReturnToNotMeasuredYet(fromState.getLoad().getFailoverDb(), load.getFailoverDb(), true);
+
+        Map<Load, Boolean> possibleTransitions = getPossibleTransitions(fromState);
         Boolean failoverActiveAfterTransition = possibleTransitions.get(load);
         if (failoverActiveAfterTransition != null) {
             return new MachineState(failoverActiveAfterTransition, load);
@@ -183,8 +191,14 @@ public class Machine {
         }
     }
 
-    private MachineState tryTransitionForMoreGeneralHadesLoad(MachineState fromState, HadesLoad load, Map<HadesLoad, Boolean> possibleTransitions) {
-        HadesLoad moreGeneralLoad = load.generalize();
+    private void ensureNoReturnToNotMeasuredYet(LoadLevel from, LoadLevel to, boolean failover) {
+        if (to == LoadLevel.notMeasuredYet && from != LoadLevel.notMeasuredYet) {
+            throw new IllegalArgumentException("return to notMeasuredYet for failover=" + failover);
+        }
+    }
+
+    private MachineState tryTransitionForMoreGeneralHadesLoad(MachineState fromState, Load load, Map<Load, Boolean> possibleTransitions) {
+        Load moreGeneralLoad = load.generalize();
         Boolean failoverActiveAfterTransition = possibleTransitions.get(moreGeneralLoad);
         if (failoverActiveAfterTransition != null) {
             return new MachineState(failoverActiveAfterTransition, moreGeneralLoad);
@@ -193,8 +207,8 @@ public class Machine {
         }
     }
 
-    private Map<HadesLoad, Boolean> getPossibleTransitions(MachineState fromState) {
-        Map<HadesLoad, Boolean> map = transitions.get(fromState);
+    private Map<Load, Boolean> getPossibleTransitions(MachineState fromState) {
+        Map<Load, Boolean> map = transitions.get(fromState);
         if (map != null) {
             return map;
         } else {

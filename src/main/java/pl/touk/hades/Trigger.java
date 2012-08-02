@@ -34,19 +34,9 @@ public interface Trigger {
      */
     boolean isFailoverActive();
 
-    /**
-     * Associates the given HA data source with this failover activator and initializes this failover activator.
-     * This method should not be invoked directly.
-     * It is invoked by haDataSource.{@link Hades#init() init()} as part of the
-     * association process that should be done as follows:
-     * <pre>
-     * haDataSource.{@link Hades#setTrigger(Trigger) setFailoverActivator(thisFailoverActivator)};
-     * haDataSource.{@link Hades#init() init()};
-     * </pre>
-     * The purpose of this method is to give an implementation a chance to initialize itself whenever it is
-     * associated with a HA data source.
-     *
-     * @param hades HA data source that should be associated with this failover activator
-     */
-    void init(Hades hades);
+    Hades getHades();
+
+    void connectionRequested(boolean success, boolean failover, long timeNanos);
+
+    long getLastFailoverQueryTimeMillis(boolean main);
 }

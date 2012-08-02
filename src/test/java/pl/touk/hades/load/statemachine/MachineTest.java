@@ -18,33 +18,64 @@ package pl.touk.hades.load.statemachine;
 import org.junit.Test;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
+import static pl.touk.hades.load.LoadLevel.*;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import static pl.touk.hades.load.LoadLevel.low;
-import static pl.touk.hades.load.LoadLevel.medium;
-import static pl.touk.hades.load.LoadLevel.high;
-import pl.touk.hades.load.statemachine.MachineState;
-import pl.touk.hades.load.statemachine.Machine;
-import pl.touk.hades.load.statemachine.Transition;
-import pl.touk.hades.load.HadesLoad;
+
+import pl.touk.hades.load.Load;
 
 /**
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
 public class MachineTest {
 
+    @Test(expected = IllegalArgumentException.class)
+    public void shouldNotAllowNullFromState() {
+        Machine.createStateMachine().transition(null, new Load(low, low));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void shouldNotAllowNullLoad() {
+        Machine.createStateMachine().transition(Machine.initialState, null);
+    }
+
     @Test
     public void shouldMakeTransitions() {
         Machine stateMachine = createStateMachine();
-        MachineState state = stateMachine.transition(new MachineState(false, low), new HadesLoad(high, true));
+        MachineState state = stateMachine.transition(new MachineState(false, low), new Load(high, true));
         assertTrue(state.isFailoverActive());
-        state = stateMachine.transition(state, new HadesLoad(low, true));
+        state = stateMachine.transition(state, new Load(low, true));
         assertFalse(state.isFailoverActive());
-        state = stateMachine.transition(state, new HadesLoad(high, low));
+        state = stateMachine.transition(state, new Load(high, low));
         assertTrue(state.isFailoverActive());
-        state = stateMachine.transition(state, new HadesLoad(medium));
+        state = stateMachine.transition(state, new Load(medium));
         assertTrue(state.isFailoverActive());
+    }
+
+    @Test
+    public void shouldNotAllowTransitionFromLowToNotMeasuredYetForMainDb() {
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(low                    , low), new Load(notMeasuredYet, low));
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(medium                 , low), new Load(notMeasuredYet, low));
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(high                   , low), new Load(notMeasuredYet, low));
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(exceptionWhileMeasuring, low), new Load(notMeasuredYet, low));
+
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(low, low)                    , new Load(low, notMeasuredYet));
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(low, medium)                 , new Load(low, notMeasuredYet));
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(low, high)                   , new Load(low, notMeasuredYet));
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(low, exceptionWhileMeasuring), new Load(low, notMeasuredYet));
+    }
+
+    private void shouldNotAllowTransitionToNotMeasuredYet(Load load1, Load load2) {
+        Machine stateMachine = Machine.createStateMachine();
+        MachineState state = stateMachine.transition(Machine.initialState, load1);
+        try {
+            stateMachine.transition(state, load2);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("return to notMeasuredYet"));
+        }
     }
 
     private Machine createStateMachine() {
