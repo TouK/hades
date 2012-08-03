@@ -89,7 +89,7 @@ public class State implements Serializable, Cloneable {
         this.backOffMultiplier = backOffMultiplier;
         this.backOffMaxRatio = backOffMaxRatio;
 
-        assert isFullState() && !isCopiedFromPartialState() && !isPartialState();
+        assert isLocalState() && !isLocalStateCombinedWithRemoteOne() && !isRemoteState();
     }
 
     public State(String instanceId, long modifyTimeMillis, boolean failover, long lastMainQueryTimeNanos, long lastFailoverQueryTimeNanos) {
@@ -110,18 +110,18 @@ public class State implements Serializable, Cloneable {
         this.backOffMultiplier = -1;
         this.backOffMaxRatio = -1;
 
-        assert !isFullState() && !isCopiedFromPartialState() && isPartialState();
+        assert !isLocalState() && !isLocalStateCombinedWithRemoteOne() && isRemoteState();
     }
 
-    private boolean isFullState() {
+    private boolean isLocalState() {
         return loadFactory != null && period[mainIndex] != -1;
     }
 
-    private boolean isCopiedFromPartialState() {
+    private boolean isLocalStateCombinedWithRemoteOne() {
         return loadFactory != null && period[mainIndex] == -1;
     }
 
-    private boolean isPartialState() {
+    private boolean isRemoteState() {
         return loadFactory == null && period[mainIndex] == -1;
     }
 
@@ -229,9 +229,9 @@ public class State implements Serializable, Cloneable {
                 '}';
     }
 
-    public void updateFullState(String logPrefix, Hades hades, long mainDbStmtExecTimeNanos, long failoverDbStmtExecTimeNanos, String quartzInstanceId) {
-        if (!isFullState()) {
-            throw new IllegalStateException("this state is a partial state or a copy of a partial state hence should not be updated");
+    public void updateLocalStateWithNewExecTimes(String logPrefix, Hades hades, long mainDbStmtExecTimeNanos, long failoverDbStmtExecTimeNanos, String quartzInstanceId) {
+        if (!isLocalState()) {
+            throw new IllegalStateException("this state must be a local one");
         }
 
         this.modifyTimeMillis = System.currentTimeMillis();
@@ -247,40 +247,58 @@ public class State implements Serializable, Cloneable {
 
         this.load = loadFactory.getLoad(avg.getValue(), avgFailover.getValue());
         MachineState oldMachineState = machineState;
-        this.machineState = stateMachine.transition(oldMachineState, load);
+        this.machineState = stateMachine.transition(oldMachineState, this.load);
         this.quartzInstanceId = quartzInstanceId;
+
         updateCycleAndPeriod(logPrefix + hades.getDsName(false, true) + ": ", mainDbStmtExecTimeNanos, oldMachineState, mainIndex);
         updateCycleAndPeriod(logPrefix + hades.getDsName(true, true) + ": ", failoverDbStmtExecTimeNanos, oldMachineState, failoverIndex);
     }
 
-    private void updateCycleAndPeriod(String logPrefix, long dbStmtExecTimeNanos, MachineState oldMachineState, int i) {
+    private void updateCycleAndPeriod(String logPrefix, long dbStmtExecTimeNanos, MachineState oldMachineState, int index) {
         if (dbStmtExecTimeNanos != notMeasuredInThisCycle) {
-            int oldPeriod = this.period[i];
-            if (dbStillNotUsedAndWithoutProblems(i == failoverIndex, oldMachineState, this.machineState)) {
-                this.cycleModuloPeriod[i] = increaseCycle(this.cycleModuloPeriod[i], oldPeriod);
-                logger.info(logPrefix + "db still unused: period=currentToUnusedRatio=" + currentToUnusedRatio);
-            } else if (dbWithProblems(i == failoverIndex, this.machineState)) {
-                this.period[i] = oldPeriod * this.backOffMultiplier;
-                if (this.period[i] > this.backOffMaxRatio) {
-                    this.period[i] = this.backOffMaxRatio;
-                }
-                this.cycleModuloPeriod[i] = increaseCycle(this.cycleModuloPeriod[i], this.period[i]);
-                logger.info(logPrefix + "load level at least high: increasing period to decrease load: old period=" + oldPeriod + ", new period=" + this.cycleModuloPeriod[i]);
-            } else if (dbNotUsedAndWithoutProblems(i == failoverIndex, this.machineState)) {
-                this.period[i] = currentToUnusedRatio;
-                this.cycleModuloPeriod[i] = increaseCycle(0, this.period[i]);
-                logger.info(logPrefix + "db became unused: old period=" + oldPeriod + ", new period=currentToUnusedRatio=" + currentToUnusedRatio);
+            if (dbStillNotUsedAndWithoutProblems(index, oldMachineState, this.machineState)) {
+                keepDecreasedLoadOfUnusedDatabase(logPrefix, index);
+            } else if (dbWithProblems(index, this.machineState)) {
+                decreaseLoadOfDatabaseWithProblems(logPrefix, index);
+            } else if (dbNotUsedAndWithoutProblems(index, this.machineState)) {
+                decreaseLoadOfDatabaseThatBecameUnused(logPrefix, index);
             } else {
-                this.cycleModuloPeriod[i] = 0;
-                this.period[i] = 1;
-                if (oldPeriod > 1) {
-                    logger.info(logPrefix + "back to period=1 (old period=" + oldPeriod + ")");
-                }
+                keepNormalLoadOfUsedDatabase(logPrefix, index);
             }
         } else {
-            this.cycleModuloPeriod[i] = increaseCycle(this.cycleModuloPeriod[i], this.period[i]);
+            cycleModuloPeriod[index] = increaseCycle(cycleModuloPeriod[index], period[index]);
         }
+    }
 
+    private void keepDecreasedLoadOfUnusedDatabase(String logPrefix, int index) {
+        this.cycleModuloPeriod[index] = increaseCycle(cycleModuloPeriod[index], period[index]);
+        logger.info(logPrefix + "db still unused: period=currentToUnusedRatio=" + currentToUnusedRatio);
+    }
+
+    private void decreaseLoadOfDatabaseWithProblems(String logPrefix, int index) {
+        int oldPeriod = this.period[index];
+        period[index] = oldPeriod * backOffMultiplier;
+        if (period[index] > backOffMaxRatio) {
+            period[index] = backOffMaxRatio;
+        }
+        cycleModuloPeriod[index] = increaseCycle(cycleModuloPeriod[index], period[index]);
+        logger.info(logPrefix + "load level at least high: increasing period to decrease load: old period=" + oldPeriod + ", new period=" + cycleModuloPeriod[index]);
+    }
+
+    private void decreaseLoadOfDatabaseThatBecameUnused(String logPrefix, int index) {
+        int oldPeriod = this.period[index];
+        this.period[index] = currentToUnusedRatio;
+        this.cycleModuloPeriod[index] = increaseCycle(0, this.period[index]);
+        logger.info(logPrefix + "db became unused: old period=" + oldPeriod + ", new period=currentToUnusedRatio=" + currentToUnusedRatio);
+    }
+
+    private void keepNormalLoadOfUsedDatabase(String logPrefix, int index) {
+        int oldPeriod = this.period[index];
+        this.cycleModuloPeriod[index] = 0;
+        this.period[index] = 1;
+        if (oldPeriod > 1) {
+            logger.info(logPrefix + "back to period=1 (old period=" + oldPeriod + ")");
+        }
     }
 
     private int increaseCycle(int cycleModuloPeriod, int period) {
@@ -292,8 +310,8 @@ public class State implements Serializable, Cloneable {
         }
     }
 
-    private boolean dbStillNotUsedAndWithoutProblems(boolean failover, MachineState oldMachineState, MachineState newMachineState) {
-        if (failover) {
+    private boolean dbStillNotUsedAndWithoutProblems(int index, MachineState oldMachineState, MachineState newMachineState) {
+        if (index == failoverIndex) {
             return !oldMachineState.isFailoverActive() && !newMachineState.isFailoverActive()
                    && (oldMachineState.getLoad().getFailoverDb() == LoadLevel.low || oldMachineState.getLoad().getFailoverDb() == LoadLevel.medium)
                    && (newMachineState.getLoad().getFailoverDb() == LoadLevel.low || newMachineState.getLoad().getFailoverDb() == LoadLevel.medium);
@@ -304,17 +322,17 @@ public class State implements Serializable, Cloneable {
         }
     }
 
-    private boolean dbNotUsedAndWithoutProblems(boolean failover, MachineState newMachineState) {
-        if (failover) {
+    private boolean dbNotUsedAndWithoutProblems(int index, MachineState newMachineState) {
+        if (index == failoverIndex) {
             return !newMachineState.isFailoverActive() && (newMachineState.getLoad().getFailoverDb() == LoadLevel.low || newMachineState.getLoad().getFailoverDb() == LoadLevel.medium);
         } else {
             return newMachineState.isFailoverActive() && (newMachineState.getLoad().getMainDb() == LoadLevel.low || newMachineState.getLoad().getMainDb() == LoadLevel.medium);
         }
     }
 
-    private boolean dbWithProblems(boolean failover, MachineState newMachineState) {
+    private boolean dbWithProblems(int index, MachineState newMachineState) {
         LoadLevel l;
-        if (failover) {
+        if (index == failoverIndex) {
             l = newMachineState.getLoad().getFailoverDb();
         } else {
             l = newMachineState.getLoad().getMainDb();
@@ -322,34 +340,34 @@ public class State implements Serializable, Cloneable {
         return l == LoadLevel.high || l == LoadLevel.exceptionWhileMeasuring;
     }
 
-    public void copyFrom(String logPrefixIfFullState, State fullOrPartialState) {
-        if (isPartialState()) {
-            throw new IllegalStateException("this state must not be a partial state");
+    public void copyFrom(String logPrefixIfLocalState, State localOrRemote) {
+        if (isRemoteState()) {
+            throw new IllegalStateException("this state must not be a remote one");
         }
-        if (fullOrPartialState.isCopiedFromPartialState()) {
-            throw new IllegalStateException("state to copy from (fullOrPartialState) must not be a copy of a remote state");
+        if (localOrRemote.isLocalStateCombinedWithRemoteOne()) {
+            throw new IllegalStateException("state to copy from (localOrRemote) must not be a copy of a remote state");
         }
 
-        this.modifyTimeMillis = fullOrPartialState.getModifyTimeMillis();
-        this.load = fullOrPartialState.load;
-        this.avg = fullOrPartialState.avg;
-        this.avgFailover = fullOrPartialState.avgFailover;
-        this.quartzInstanceId = fullOrPartialState.quartzInstanceId;
-        this.machineState = fullOrPartialState.machineState;
-        this.period[mainIndex] = fullOrPartialState.period[mainIndex];
-        this.period[failoverIndex] = fullOrPartialState.period[failoverIndex];
-        this.cycleModuloPeriod[mainIndex] = fullOrPartialState.cycleModuloPeriod[mainIndex];
-        this.cycleModuloPeriod[failoverIndex] = fullOrPartialState.cycleModuloPeriod[failoverIndex];
+        this.modifyTimeMillis = localOrRemote.getModifyTimeMillis();
+        this.load = localOrRemote.load;
+        this.avg = localOrRemote.avg;
+        this.avgFailover = localOrRemote.avgFailover;
+        this.quartzInstanceId = localOrRemote.quartzInstanceId;
+        this.machineState = localOrRemote.machineState;
+        this.period[mainIndex] = localOrRemote.period[mainIndex];
+        this.period[failoverIndex] = localOrRemote.period[failoverIndex];
+        this.cycleModuloPeriod[mainIndex] = localOrRemote.cycleModuloPeriod[mainIndex];
+        this.cycleModuloPeriod[failoverIndex] = localOrRemote.cycleModuloPeriod[failoverIndex];
 
-        if (fullOrPartialState.isFullState()) {
-            this.history = fullOrPartialState.history.clone();
-            this.historyFailover = fullOrPartialState.historyFailover.clone();
-            checkConfigsIdentical(logPrefixIfFullState, fullOrPartialState);
-            assert isFullState();
+        if (localOrRemote.isLocalState()) {
+            this.history = localOrRemote.history.clone();
+            this.historyFailover = localOrRemote.historyFailover.clone();
+            checkConfigsIdentical(logPrefixIfLocalState, localOrRemote);
+            assert isLocalState();
         } else {
             this.history = null;
             this.historyFailover = null;
-            assert isCopiedFromPartialState();
+            assert isLocalStateCombinedWithRemoteOne();
         }
     }
 

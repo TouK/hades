@@ -408,7 +408,7 @@ public final class SqlTimeBasedTriggerImpl extends TimerTask implements SqlTimeB
         State newState;
         synchronized (state) {
             oldState = state.clone();
-            state.updateFullState(indent(logPrefix), getHades(), mainDbStmtExecTimeNanos, failoverDbStmtExecTimeNanos, schedulerInstanceId);
+            state.updateLocalStateWithNewExecTimes(indent(logPrefix), getHades(), mainDbStmtExecTimeNanos, failoverDbStmtExecTimeNanos, schedulerInstanceId);
             newState = state.clone();
         }
         if (newState.getMachineState().isFailoverActive() != oldState.getMachineState().isFailoverActive()) {
@@ -554,11 +554,11 @@ public final class SqlTimeBasedTriggerImpl extends TimerTask implements SqlTimeB
         return map;
     }
 
-    private void restoreFullStateFromJobExecutionContext(String curRunLogPrefix, JobExecutionContext map) {
-        State fullStateFromJobDataMap = (State) map.getMergedJobDataMap().get(stateKey);
-        State oldState = setState(curRunLogPrefix, fullStateFromJobDataMap);
-        if (!oldState.equals(fullStateFromJobDataMap)) {
-            logger.debug(curRunLogPrefix + "restoring state from quartz job data map:\nold: " + oldState + "\nnew: " + fullStateFromJobDataMap);
+    private void restoreStateFromJobExecutionContext(String curRunLogPrefix, JobExecutionContext map) {
+        State newState = (State) map.getMergedJobDataMap().get(stateKey);
+        State oldState = setState(curRunLogPrefix, newState);
+        if (!oldState.equals(newState)) {
+            logger.debug(curRunLogPrefix + "restoring state from quartz job data map:\nold: " + oldState + "\nnew: " + newState);
         } else {
             logger.debug(curRunLogPrefix + "hades state received from quartz job data map is equal to the current state");
         }
@@ -580,7 +580,7 @@ public final class SqlTimeBasedTriggerImpl extends TimerTask implements SqlTimeB
             String logPrefix = "[" + trigger.getHades() + ", fireTime=" + Utils.formatTime(ctx.getTrigger().getPreviousFireTime()) + "] ";
             logger.info(logPrefix + "HadesJob started");
             try {
-                trigger.restoreFullStateFromJobExecutionContext(indent(logPrefix), ctx);
+                trigger.restoreStateFromJobExecutionContext(indent(logPrefix), ctx);
                 trigger.run(indent(logPrefix), ctx);
                 ctx.getJobDetail().setJobDataMap(trigger.createHadesJobDataMap());
                 logger.info(logPrefix + "HadesJob ended");
