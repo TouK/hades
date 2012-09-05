@@ -8,9 +8,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pl.touk.hades.Hades;
 import pl.touk.hades.Utils;
+import pl.touk.hades.load.Load;
 import pl.touk.hades.sql.HadesSafeConnectionGetter;
 import pl.touk.hades.sql.SafeSqlExecutor;
-import pl.touk.hades.sql.timemonitoring.repo.SqlTimeRepo;
 import pl.touk.hades.exception.*;
 
 import java.sql.Connection;
@@ -29,31 +29,40 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
 
     private static final Logger logger = LoggerFactory.getLogger(SqlTimeCalculatorImpl.class);
 
-    private String sql = "select 1 from dual";
-    private int sqlExecTimeout;
-    private int sqlExecTimeoutForcingPeriodMillis;
-    private int connTimeoutMillis;
+    private final Hades hades;
 
-    private ExecutorService externalExecutor;
+    private final String sql;
+    private final int sqlExecTimeout;
+    private final int sqlExecTimeoutForcingPeriodMillis;
+    private final int connTimeoutMillis;
 
-    private SqlTimeRepo sqlTimeRepo;
+    private final ExecutorService externalExecutor;
 
-    private SqlTimeBasedTrigger sqlTimeBasedTrigger;
+    private final Repo repo;
 
-    public SqlTimeCalculatorImpl() {
-        setSqlExecTimeout(0);
-        setSqlExecTimeoutForcingPeriodMillis(0);
-        setConnTimeoutMillis(0);
+    public SqlTimeCalculatorImpl(Hades hades, int connTimeoutMillis, ExecutorService externalExecutor, Repo repo, String sql, int sqlExecTimeout, int sqlExecTimeoutForcingPeriodMillis) {
+        Utils.assertNotNull(hades, "hades");
+        Utils.assertNonNegative(sqlExecTimeout, "sqlExecTimeout");
+        Utils.assertNonNegative(sqlExecTimeoutForcingPeriodMillis, "sqlExecTimeoutForcingPeriodMillis");
+        Utils.assertNonNegative(connTimeoutMillis, "connTimeoutMillis");
+
+        this.hades = hades;
+        this.connTimeoutMillis = connTimeoutMillis;
+        this.externalExecutor = externalExecutor;
+        this.repo = repo;
+        this.sql = sql;
+        this.sqlExecTimeout = sqlExecTimeout;
+        this.sqlExecTimeoutForcingPeriodMillis = sqlExecTimeoutForcingPeriodMillis;
     }
 
-    public void init(SqlTimeBasedTrigger sqlTimeBasedTrigger) {
-        Utils.assertNotNull(sqlTimeBasedTrigger, "sqlTimeBasedTrigger");
-        Utils.assertSame(sqlTimeBasedTrigger.getSqlTimeCalculator(), this, "sqlTimeBasedTrigger.sqlTimeCalculator != this");
-        Utils.assertNull(this.sqlTimeBasedTrigger, "sqlTimeBasedTrigger; ensure that each sqlTimeBasedTrigger has its own SqlTimeCalculator");
-
-        this.sqlTimeBasedTrigger = sqlTimeBasedTrigger;
-
-        sqlTimeRepo.init(this);
+    public SqlTimeCalculatorImpl(Hades hades, Repo repo, ExecutorService executor) {
+        this.hades = hades;
+        this.connTimeoutMillis = 0;
+        this.externalExecutor = executor;
+        this.repo = repo;
+        this.sql = "select sysdate from dual";
+        this.sqlExecTimeout = 0;
+        this.sqlExecTimeoutForcingPeriodMillis = 0;
     }
 
     public long[] calculateMainAndFailoverSqlTimesNanos(final String logPrefix, final State state) throws InterruptedException {
@@ -80,7 +89,7 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
     private Callable<Long> createCallable(final String logPrefix, final State state, final boolean failover) {
         return new Callable<Long>() {
             public Long call() throws Exception {
-                return calculateSqlTimeNanos(logPrefix + getHades().getDsName(failover, true) + ": ", state, failover);
+                return calculateSqlTimeNanos(logPrefix + hades.getDsName(failover, true) + ": ", state, failover);
             }
         };
     }
@@ -102,10 +111,10 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
         logger.debug(logPrefix + "calculateSqlTimeNanos");
         logPrefix = indent(logPrefix);
 
-        String dsName = getHades().getDsName(failover);
+        String dsName = hades.getDsName(failover);
         Long time;
         if (state.sqlTimeIsMeasuredInThisCycle(failover)) {
-            time = sqlTimeRepo.findSqlTimeYoungerThan(logPrefix, dsName);
+            time = repo.findSqlTimeYoungerThan(logPrefix, dsName);
         } else {
             logger.debug(logPrefix + "not measured in this cycle (only getConnection is executed)");
             time = State.notMeasuredInThisCycle;
@@ -118,134 +127,87 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
             if (time != null) {
                 return time;
             }
-            preparedStatement = Utils.safelyPrepareStatement(logPrefix, connection, getHades().desc(failover), sqlExecTimeout, sql);
-            time = new SafeSqlExecutor(sqlExecTimeout, sqlExecTimeoutForcingPeriodMillis, getHades().desc(failover), externalExecutor).execute(logPrefix, preparedStatement, false, sql);
-            return sqlTimeRepo.storeSqlTime(logPrefix, dsName, time);
+            preparedStatement = Utils.safelyPrepareStatement(logPrefix, connection, hades.desc(failover), sqlExecTimeout, sql);
+            time = new SafeSqlExecutor(sqlExecTimeout, sqlExecTimeoutForcingPeriodMillis, hades.desc(failover), externalExecutor).execute(logPrefix, preparedStatement, false, sql);
+            return repo.storeSqlTime(logPrefix, dsName, time);
         } catch (LoadMeasuringException e) {
-            return sqlTimeRepo.storeException(logPrefix, dsName, e);
+            return repo.storeException(logPrefix, dsName, e);
         } catch (RuntimeException e) {
-            logger.error(logPrefix + "unexpected runtime exception while measuring statement execution time on " + getHades().desc(failover), e);
-            return sqlTimeRepo.storeException(logPrefix, dsName, e);
+            logger.error(logPrefix + "unexpected runtime exception while measuring statement execution time on " + hades.desc(failover), e);
+            return repo.storeException(logPrefix, dsName, e);
         } finally {
-            close(getHades(), logPrefix, preparedStatement, connection, failover);
+            close(logPrefix, hades, preparedStatement, connection, failover);
         }
     }
 
-    private Connection getConnection(final boolean failover, final String curRunLogPrefix) throws InterruptedException, LoadMeasuringException {
+    public Connection getConnection(final boolean failover, final String curRunLogPrefix)
+            throws InterruptedException, LoadMeasuringException {
         if (connTimeoutMillis > 0) {
-            return new HadesSafeConnectionGetter(connTimeoutMillis, getHades(), failover, externalExecutor).getConnectionWithTimeout(curRunLogPrefix);
+            return new HadesSafeConnectionGetter(
+                    connTimeoutMillis,
+                    hades,
+                    failover,
+                    externalExecutor
+            ).getConnectionWithTimeout(curRunLogPrefix);
         } else {
-            return getHades().getConnection(curRunLogPrefix, failover);
+            return hades.getConnection(curRunLogPrefix, failover);
         }
-    }
-
-    public Hades getHades() {
-        return sqlTimeBasedTrigger.getHades();
     }
 
     public long estimateMaxExecutionTimeMillisOfCalculationMethod() {
         return (connTimeoutMillis > 0 ? connTimeoutMillis : 100) + (sqlExecTimeout > 0 ? sqlExecTimeout * 1000 + sqlExecTimeoutForcingPeriodMillis: 1000);
     }
 
-    public State syncValidate(String logPrefix, State state) throws InterruptedException {
-        logger.debug(logPrefix + "syncValidate");
-        logPrefix = indent(logPrefix);
-
-        boolean failover = state.getMachineState().isFailoverActive();
-        Connection c = null;
-        try {
-            c = getConnection(failover, logPrefix);
-            logger.debug(logPrefix + "state is valid");
-            return state;
-        } catch (LoadMeasuringException e) {
-            logger.warn(logPrefix + "borrowed " + state + " is invalid - can't get connection to " + getHades().getDsName(failover));
-        } finally {
-            close(getHades(), logPrefix, null, c, failover);
-        }
-        c = null;
-        try {
-            c = getConnection(!failover, logPrefix);
-            logger.warn(logPrefix + "state is invalid but its reverted form perfectly is");
-            return new State(
-                    state.getQuartzInstanceId() + " (reverted by " + getSqlTimeBasedTrigger().getSchedulerInstanceId() + " while syncing)",
-                    System.currentTimeMillis(),
-                    !failover,
-                    !failover ? ExceptionEnum.connException.value() : state.getAvg().getLast(),
-                    failover ? ExceptionEnum.connException.value() : state.getAvgFailover().getLast());
-        } catch (LoadMeasuringException e) {
-            logger.warn(logPrefix + "state is invalid and so is its reverted form");
-            return new State(
-                    state.getQuartzInstanceId() + " (no ds could by connected from " + getSqlTimeBasedTrigger().getSchedulerInstanceId() + " while syncing)",
-                    System.currentTimeMillis(),
-                    false,
-                    ExceptionEnum.connException.value(),
-                    ExceptionEnum.connException.value());
-        } finally {
-            close(getHades(), logPrefix, null, c, !failover);
-        }
-    }
-
-    private void close(Hades haDataSource, String curRunLogPrefix, PreparedStatement preparedStatement, Connection connection, boolean failover) {
-        if (preparedStatement != null) {
+    public void close(String curRunLogPrefix, Hades hades, PreparedStatement ps, Connection c, boolean failover) {
+        if (ps != null) {
             try {
-                preparedStatement.close();
+                ps.close();
             } catch (Exception e) {
-                logger.error(curRunLogPrefix + "exception while closing prepared statement for " + haDataSource.desc(failover), e);
+                logger.error(curRunLogPrefix + "exception while closing prepared statement for " + hades.desc(failover), e);
             }
         }
-        if (connection != null) {
+        if (c != null) {
             try {
-                connection.close();
+                c.close();
             } catch (Exception e) {
-                logger.error(curRunLogPrefix + "exception while closing connection to " + haDataSource.desc(failover), e);
+                logger.error(curRunLogPrefix + "exception while closing connection to " + hades.desc(failover), e);
             }
         }
     }
 
-    public void setSql(String sql) {
-        this.sql = sql;
+    public String getLog(State oldState, State newState) {
+        Boolean failoverDataSourcePinned = hades.getFailoverDataSourcePinned();
+        return "average execution time for '" + sql + "' for last " + newState.getAvg().getItemsCountIncludedInAverage()
+                + " execution(s): " + Utils.nanosToMillisAsStr(newState.getAvg().getValue())
+                + " (last: " + Utils.nanosToMillisAsStr(newState.getAvg().getLast()) + ") - " + hades.getMainDsName()
+                + ", " + Utils.nanosToMillisAsStr(newState.getAvgFailover().getValue())
+                + " (last: " + Utils.nanosToMillisAsStr(newState.getAvgFailover().getLast()) + ") - "
+                + hades.getFailoverDsName() + "; load levels derived from average execution times: "
+                + getLoadLevels(newState) + "; " + createTransitionDesc(oldState, newState)
+                + (failoverDataSourcePinned != null ? "; above calculations currently have no effect because "
+                + (failoverDataSourcePinned ? "failover data source (" + hades.getFailoverDsName()
+                + ")" : "main data source (" + hades.getMainDsName() + ")") + " is pinned and therefore used" : "");
     }
 
-    public String getSql() {
-        return sql;
+    private String getLoadLevels(State state) {
+        Load load = state.getMachineState().getLoad();
+        return load.getMainDb()     + " - " + hades.getMainDsName() + ", " +
+                load.getFailoverDb() + " - " + hades.getFailoverDsName() +
+                (load.isMainDbLoadHigher() != null ? " (" + hades.getMainDsName() + " load level is" + (load.isMainDbLoadHigher() ? "" : " not") + " higher)" : "");
     }
 
-    public void setSqlExecTimeout(int sqlExecTimeout) {
-        Utils.assertNonNegative(sqlExecTimeout, "sqlExecTimeout");
-        this.sqlExecTimeout = sqlExecTimeout;
-    }
-
-    public void setSqlExecTimeoutForcingPeriodMillis(int sqlExecTimeoutForcingPeriodMillis) {
-        Utils.assertNonNegative(sqlExecTimeoutForcingPeriodMillis, "sqlExecTimeoutForcingPeriodMillis");
-        this.sqlExecTimeoutForcingPeriodMillis = sqlExecTimeoutForcingPeriodMillis;
-    }
-
-    public void setConnTimeoutMillis(int connTimeoutMillis) {
-        Utils.assertNonNegative(connTimeoutMillis, "connTimeoutMillis");
-        this.connTimeoutMillis = connTimeoutMillis;
-    }
-
-    public void setSqlTimeRepo(SqlTimeRepo sqlTimeRepo) {
-        this.sqlTimeRepo = sqlTimeRepo;
-    }
-
-    public SqlTimeBasedTrigger getSqlTimeBasedTrigger() {
-        return sqlTimeBasedTrigger;
-    }
-
-    public SqlTimeRepo getSqlTimeRepo() {
-        return sqlTimeRepo;
-    }
-
-    public int getSqlExecTimeout() {
-        return sqlExecTimeout;
-    }
-
-    public int getConnTimeoutMillis() {
-        return connTimeoutMillis;
-    }
-
-    public void setExternalExecutor(ExecutorService externalExecutor) {
-        this.externalExecutor = externalExecutor;
+    private String createTransitionDesc(State oldState, State newState) {
+        boolean failoverOrFailback = newState.getMachineState().isFailoverActive() != oldState.getMachineState().isFailoverActive();
+        String dbSwitchType;
+        if (failoverOrFailback) {
+            dbSwitchType = newState.getMachineState().isFailoverActive() ? "activating failover (" + hades.getMainDsName() + " -> " + hades.getFailoverDsName() + ")" : "activating failback (" + hades.getFailoverDsName() + " -> " + hades.getMainDsName() + ")";
+        } else {
+            if (newState.getMachineState().isFailoverActive()) {
+                dbSwitchType = "failover remains active (keep using " + hades.getFailoverDsName() + ")";
+            } else {
+                dbSwitchType = "failover remains inactive (keep using " + hades.getMainDsName() + ")";
+            }
+        }
+        return dbSwitchType;
     }
 }

@@ -15,7 +15,6 @@
  */
 package pl.touk.hades.load;
 
-import java.util.Date;
 import java.io.Serializable;
 
 /**
@@ -122,5 +121,9 @@ public class Load implements Serializable {
 
     public Load generalize() {
         return new Load(mainDb, failoverDb);
+    }
+
+    public LoadLevel getLoadLevel(boolean failover) {
+        return failover ? failoverDb : mainDb;
     }
 }

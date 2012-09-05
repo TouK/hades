@@ -20,21 +20,18 @@ import pl.touk.hades.load.LoadLevel;
 
 import java.io.Serializable;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * A factory that produces an instance of {@link pl.touk.hades.load.Load} class when given a pair of numeric values: the main database load
  * and the failover database load. Such a numeric pair is transformed into a load (which is descriptive rather than
  * numeric) as follows.
- * Each factory holds two numeric values: <code>stmtExecTimeLimitTriggeringFailoverNanos</code> and
+ * Each factory holds two numeric values: <code>sqlTimeTriggeringFailbackNanos</code> and
  * <code>statementExecutionTimeLimitTriggeringFailbackNanos</code> (which can be set in {@link #SqlTimeBasedLoadFactory(long, long)}),
  * where the first value must not be less than the second value.
  * Numeric values not greater than <code>statementExecutionTimeLimitTriggeringFailbackNanos</code>
  * indicate {@link LoadLevel#low low} load level.
  * Numeric values greater than <code>statementExecutionTimeLimitTriggeringFailbackNanos</code> and not greater than
- * <code>stmtExecTimeLimitTriggeringFailoverNanos</code> indicate {@link LoadLevel#medium medium} load level.
- * Numeric values greater than <code>stmtExecTimeLimitTriggeringFailoverNanos</code> and less than
+ * <code>sqlTimeTriggeringFailbackNanos</code> indicate {@link LoadLevel#medium medium} load level.
+ * Numeric values greater than <code>sqlTimeTriggeringFailbackNanos</code> and less than
  * <code>Long.MAX_VALUE</code>
  * indicate {@link LoadLevel#high high} load level. Numeric values greater than or equal to
  * {@link ExceptionEnum#minErroneousValue() ExceptionEnum.minErroneousValue()}

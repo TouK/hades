@@ -19,9 +19,6 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.io.PrintWriter;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -32,7 +29,7 @@ import pl.touk.hades.sql.exception.ConnException;
 /**
  * A data source which offers high-availability (HA) by enclosing two real data sources - the main one and the failover
  * one. Which enclosed data source is used is not determined by the HA data source itself. It is the responibility of
- * {@link Trigger} associated with this HA data source.
+ * {@link Monitor} associated with this HA data source.
  * <p>
  * This class should be used as follows:
  * <pre>
@@ -88,7 +85,7 @@ import pl.touk.hades.sql.exception.ConnException;
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public class Hades<T extends Trigger> implements DataSource, HadesMBean {
+public class Hades<M extends Monitor> implements DataSource, HadesMBean {
 
     private final static Logger logger = LoggerFactory.getLogger(Hades.class);
 
@@ -104,7 +101,7 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
     private final String failoverDsName;
     private final String mainDsNameFixedWidth;
     private final String failoverDsNameFixedWidth;
-    private final AtomicReference<T> trigger;
+    private final AtomicReference<M> monitor;
     private final AtomicInteger failoverDataSourcePinned;
 
     public Hades(DataSource mainDataSource, DataSource failoverDataSource, String mainDsName, String failoverDsName) {
@@ -122,15 +119,15 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
         this.mainDsNameFixedWidth = appendSpaces(mainDsName, width);
         this.failoverDsNameFixedWidth = appendSpaces(failoverDsName, width);
 
-        this.trigger = new AtomicReference<T>();
+        this.monitor = new AtomicReference<M>();
         this.failoverDataSourcePinned = new AtomicInteger(notPinned);
     }
 
-    public void init(T trigger) {
-        Utils.assertNotNull(trigger, "trigger");
-        Utils.assertSame(trigger.getHades(), this, "trigger.hades != this; ensure that Hades association with a Trigger is one-to-one");
-        if (!this.trigger.compareAndSet(null, trigger)) {
-            throw new IllegalStateException("hades already associated with a trigger");
+    public void init(M monitor) {
+        Utils.assertNotNull(monitor, "monitor");
+        Utils.assertSame(monitor.getHades(), this, "monitor.hades != this; ensure that each association of a hades and a monitor is one-to-one");
+        if (!this.monitor.compareAndSet(null, monitor)) {
+            throw new IllegalStateException("hades already associated with a monitor");
         }
     }
 
@@ -145,7 +142,7 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
     /**
      * Invokes {@link javax.sql.DataSource#getConnection() getConnection()} on the main data source or on the failover
      * data source if failover is inactive or active respectively.
-     * To check whether failover is active {@link Trigger#isFailoverActive() isFailoverActive()} on the
+     * To check whether failover is active {@link Monitor#isFailoverActive() isFailoverActive()} on the
      * associated failover activator is invoked.
      * <p>
      * The above check is ommited if the main data source is pinned (see {@link #pinMainDataSource()}).
@@ -164,7 +161,7 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
     /**
      * Invokes {@link javax.sql.DataSource#getConnection(String, String) getConnection(username, password)} on the main
      * data source or on the failover data source if failover is inactive or active respectively.
-     * To check whether failover is active {@link Trigger#isFailoverActive() isFailoverActive()} on the
+     * To check whether failover is active {@link Monitor#isFailoverActive() isFailoverActive()} on the
      * associated failover activator is invoked.
      * <p>
      * The above check is ommited if the main data source is pinned (see {@link #pinMainDataSource()}).
@@ -217,25 +214,30 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
      * @param withAuth whether to delegate to {@link javax.sql.DataSource#getConnection(String, String)} or to {@link javax.sql.DataSource#getConnection()}
      * @param username username for which the connection should be returned (ignored if <code>withAuth</code> is <code>false</code>)
      * @param password password for the given <code>username</code> (ignored if <code>withAuth</code> is <code>false</code>)
-     * @param informTrigger d
+     * @param informMonitor d
      * @return connection from the specified data source
      * @throws SQLException if the specified data source throws the exception
      * @throws RuntimeException if the specified data source throws the runtime exception
      */
-    private Connection getConnection(String logPrefix, boolean failover, boolean withAuth, String username, String password, boolean informTrigger) throws SQLException, RuntimeException {
+    private Connection getConnection(String logPrefix,
+                                     boolean failover,
+                                     boolean withAuth,
+                                     String username,
+                                     String password,
+                                     boolean informMonitor) throws SQLException, RuntimeException {
         DataSource ds = failover ? failoverDataSource : mainDataSource;
         Connection connection;
         long start = System.nanoTime();
         try {
             connection = withAuth ? ds.getConnection(username, password) : ds.getConnection();
         } catch (SQLException e) {
-            throw handleException(logPrefix, e, start, connDesc(withAuth, username, failover), failover, informTrigger);
+            throw handleException(logPrefix, e, start, connDesc(withAuth, username, failover), failover, informMonitor);
         } catch (RuntimeException e) {
-            throw handleException(logPrefix, e, start, connDesc(withAuth, username, failover), failover, informTrigger);
+            throw handleException(logPrefix, e, start, connDesc(withAuth, username, failover), failover, informMonitor);
         }
         try {
             long timeElapsedNanos = System.nanoTime() - start;
-            if (informTrigger) {
+            if (informMonitor) {
                 connectionRequested(true, failover, timeElapsedNanos);
             }
             if (logger.isDebugEnabled()) {
@@ -258,19 +260,19 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
         return  " a connection" + (withAuth ? " for username " + username : "") + " to " + (failover ? failoverDsName + " (failover" : mainDsName + " (main") + " ds) ";
     }
 
-    private <T extends Throwable> T handleException(String logPrefix, T e, long start, String connDesc, boolean failover, boolean informTrigger) throws T {
+    private <T extends Throwable> T handleException(String logPrefix, T e, long start, String connDesc, boolean failover, boolean informMonitor) throws T {
         long timeElapsedNanos = System.nanoTime() - start;
-        if (informTrigger) {
+        if (informMonitor) {
             connectionRequested(false, failover, timeElapsedNanos);
         }
         logger.error(logPrefix + "exception while getting " + connDesc + "caught in " + Utils.nanosToMillisAsStr(timeElapsedNanos), e);
         return e;
     }
 
-    private void connectionRequested(boolean b, boolean failover, long timeElapsedNanos) {
+    private void connectionRequested(boolean success, boolean failover, long timeElapsedNanos) {
         try {
-            getTrigger().connectionRequested(b, failover, timeElapsedNanos);
-        } catch (NoTriggerException e) {
+            getMonitor().connectionRequestedFromHades(success, failover, timeElapsedNanos);
+        } catch (NoMonitorException e) {
         }
     }
 
@@ -287,9 +289,9 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
         Boolean b = getFailoverDataSourcePinned();
         if (b == null) {
             try {
-                return getTrigger().isFailoverActive();
-            } catch (NoTriggerException e) {
-                logger.warn(e.getMessage());
+                return getMonitor().isFailoverActive();
+            } catch (NoMonitorException e) {
+                logger.warn(e.getMessage(), e);
                 return false;
             }
         } else {
@@ -355,10 +357,10 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
      * The failover data source is used (i.e. {@link #getConnection()} and {@link #getConnection(String, String)}
      * returns connections from it) if it is pinned (see {@link #pinFailoverDataSource()}). Similarly, the main data
      * source is used if it is pinned (see {@link #pinMainDataSource()}). If no pin is enabled and
-     * {@link #getTrigger()}.{@link Trigger#isFailoverActive() isFailoverActive()} returns
+     * {@link #getMonitor()}.{@link Monitor#isFailoverActive() isFailoverActive()} returns
      * <code>false</code> the main data source is used.
      * If no pin is enabled and
-     * {@link #getTrigger ()}.{@link Trigger#isFailoverActive() isFailoverActive()} returns
+     * {@link #getMonitor ()}.{@link Monitor#isFailoverActive() isFailoverActive()} returns
      * <code>true</code> the failover data source is used.
      *
      * @return <code>true</code> if the failover data source is used, <code>false</code> otherwise
@@ -369,6 +371,23 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
 
     public String getActiveDataSourceName() {
         return failoverEffectivelyActive() ? getFailoverDsName() : getMainDsName();
+    }
+
+
+    public String getFailoverLoad() {
+        return getLoadLevel(true);
+    }
+
+    public String getMainLoad() {
+        return getLoadLevel(false);
+    }
+
+    private String getLoadLevel(boolean failover) {
+        try {
+            return getMonitor().getLoad().getLoadLevel(failover).name();
+        } catch (NoMonitorException e) {
+            return e.getMessage();
+        }
     }
 
     /**
@@ -420,12 +439,12 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
         throw new UnsupportedOperationException(errorMsg);
     }
 
-    public T getTrigger() throws NoTriggerException {
-        T t = trigger.get();
+    public M getMonitor() throws NoMonitorException {
+        M t = monitor.get();
         if (t != null) {
             return t;
         } else {
-            throw new NoTriggerException(this);
+            throw new NoMonitorException(this);
         }
     }
 
@@ -445,9 +464,9 @@ public class Hades<T extends Trigger> implements DataSource, HadesMBean {
         return failover ? (fixedWidth ? failoverDsNameFixedWidth : failoverDsName) : (fixedWidth ? mainDsNameFixedWidth : mainDsName);
     }
 
-    public static class NoTriggerException extends Exception {
-        public NoTriggerException(Hades hades) {
-            super("currently there is no trigger associated with Hades " + hades + "; if this situation lasts longer than couple of minutes then it might be an error - such situation is normal only during initialization");
+    public static class NoMonitorException extends Exception {
+        public NoMonitorException(Hades hades) {
+            super("currently there is no monitor associated with Hades " + hades + "; if this situation lasts longer than couple of minutes then it might be an error - such situation is normal only during initialization");
         }
     }
 }

@@ -15,18 +15,20 @@
  */
 package pl.touk.hades;
 
+import pl.touk.hades.load.Load;
+
 /**
- * The class that controls the switching between the main and the failover data sources in a
- * {@link Hades}. In other words this class can trigger failover or failback.
+ * Each instance of this class monitors both data sources of a {@link Hades hades} and can tell if failover should or
+ * should not be active for the hades. The associations between hadeses and monitors are "one-to-one".
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public interface Trigger {
+public interface Monitor extends ConnectionListener {
 
     /**
      * Returns <code>true</code> if failover is active and <code>false</code> otherwise. This method controls the
-     * process of switching between tha main and the failover data sources contained inside the HA data source
-     * associated with this failover activator. For more details see methods {@link Hades#getConnection()} and
+     * process of switching between tha main and the failover data sources contained inside the hades
+     * associated with this monitor. For more details see methods {@link Hades#getConnection()} and
      * {@link Hades#getConnection(String, String)} which invoke this method to learn whether failover is
      * active or not.
      *
@@ -34,9 +36,17 @@ public interface Trigger {
      */
     boolean isFailoverActive();
 
+    /**
+     * Returns hades associated with this monitor.
+     *
+     * @return hades associated with this monitor
+     */
     Hades getHades();
 
-    void connectionRequested(boolean success, boolean failover, long timeNanos);
-
-    long getLastFailoverQueryTimeMillis(boolean main);
+    /**
+     * Returns current {@link Load load} containing main and failover data base
+     * {@link pl.touk.hades.load.LoadLevel load levels} of the associated hades.
+     * @return current load of the associated hades
+     */
+    Load getLoad();
 }

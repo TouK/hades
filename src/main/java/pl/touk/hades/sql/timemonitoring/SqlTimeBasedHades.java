@@ -20,39 +20,23 @@ import pl.touk.hades.Hades;
 import javax.sql.DataSource;
 
 /**
- * A {@link pl.touk.hades.Hades} whose failover activator is of type {@link SqlTimeBasedTriggerImpl}.
+ * {@link pl.touk.hades.Hades} whose monitor is of type {@link pl.touk.hades.sql.timemonitoring.SqlTimeBasedMonitorImpl}.
  * <p>
- * This class extends <code>HaDataSource</code> simply by implementing jmx operations defined in {@link SqlTimeBasedHadesMBean}.
- * These operations are specific to load measuring done by enclosed <code>SqlTimeBasedTriggerImpl</code>.
+ * This class extends Hades simply by implementing jmx operations defined in {@link SqlTimeBasedHadesMBean}.
+ * These operations are specific to sql time measuring done by the associated {@link SqlTimeBasedMonitor}.
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-public class SqlTimeBasedHades extends Hades<SqlTimeBasedTrigger> implements SqlTimeBasedHadesMBean {
+public class SqlTimeBasedHades extends Hades<SqlTimeBasedMonitor> implements SqlTimeBasedHadesMBean {
 
     public SqlTimeBasedHades(DataSource mainDataSource, DataSource failoverDataSource, String mainDsName, String failoverDsName) {
         super(mainDataSource, failoverDataSource, mainDsName, failoverDsName);
     }
 
-    public String getFailoverLoad() {
-        try {
-            return getTrigger().getCurrentState().getLoad().getFailoverDb().name();
-        } catch (NoTriggerException e) {
-            return e.getMessage();
-        }
-    }
-
-    public String getMainLoad() {
-        try {
-            return getTrigger().getCurrentState().getLoad().getMainDb().name();
-        } catch (NoTriggerException e) {
-            return e.getMessage();
-        }
-    }
-
     public String getLoadLog() {
         try {
-            return getTrigger().getLoadLog();
-        } catch (NoTriggerException e) {
+            return getMonitor().getLoadLog();
+        } catch (NoMonitorException e) {
             return e.getMessage();
         }
     }

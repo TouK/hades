@@ -29,4 +29,7 @@ public interface HadesMBean {
 
     boolean isFailoverActive();
     String getActiveDataSourceName();
+
+    String getFailoverLoad();
+    String getMainLoad();
 }

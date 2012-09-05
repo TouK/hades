@@ -131,4 +131,10 @@ public class Utils {
     public static long millisToNanos(int i) {
         return i * nanosInMillisecond;
     }
+
+    public static void assertNonZero(int i, String fieldName) {
+        if (i == 0) {
+            throw new IllegalArgumentException(fieldName + " must be non-zero");
+        }
+    }
 }

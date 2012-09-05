@@ -24,37 +24,30 @@ import org.mockito.stubbing.Answer;
 import org.mockito.invocation.InvocationOnMock;
 
 import javax.sql.DataSource;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.lang.String;
+import java.lang.System;
+import java.lang.Thread;
+import java.lang.Throwable;
+import java.net.UnknownHostException;
 import java.sql.SQLException;
 import java.sql.Connection;
-import java.io.*;
 
-import org.springframework.context.support.ClassPathXmlApplicationContext;
-import pl.touk.hades.sql.timemonitoring.SqlTimeBasedTriggerImpl;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import pl.touk.hades.sql.exception.ConnTimeout;
+import pl.touk.hades.sql.timemonitoring.*;
 
 /**
-* @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
-*/
+ * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
+ */
 public class HadesTest {
 
-    @Test
-    public void shouldLoadSpringContext() {
-        String cronA = "1 2 3 * * ?";
-        String cronB = "2 3 4 * * ?";
-        StringFactory.beansByName.put("cronA", cronA);
-        StringFactory.beansByName.put("cronB", cronB);
-
-        ClassPathXmlApplicationContext ctx;
-
-        ctx = new ClassPathXmlApplicationContext("/integration/smx11_at_js22_7-context.xml");
-        assertEquals(cronA, ctx.getBean("triggerA", SqlTimeBasedTriggerImpl.class).getCron());
-        assertEquals(cronB, ctx.getBean("triggerB", SqlTimeBasedTriggerImpl.class).getCron());
-        ctx.close();
-
-        ctx = new ClassPathXmlApplicationContext("/integration/smx11_at_js22_8-context.xml");
-        assertEquals(cronA, ctx.getBean("triggerA", SqlTimeBasedTriggerImpl.class).getCron());
-        assertEquals(cronB, ctx.getBean("triggerB", SqlTimeBasedTriggerImpl.class).getCron());
-        ctx.close();
-    }
+    private static final Logger logger = LoggerFactory.getLogger(HadesTest.class);
 
     @Test
     public void should() throws IOException {
@@ -138,21 +131,27 @@ public class HadesTest {
         shouldThrowException(true, true);
     }
 
-//    @Test
-//    public void shouldLogTimeoutExceptionIfWaitingForConnectionToMainDsTooLong() throws SQLException, InterruptedException {
-//        Hades<SqlTimeBasedTriggerImpl> ds = new Hades<SqlTimeBasedTriggerImpl>();
-//        ds.setMainDataSource(createMockDataSource("mainDs", false, 1100));
-//        ds.setFailoverDataSource(createMockDataSource("failoverDs", false, 0));
-//        SqlTimeBasedTriggerImpl activator = new SqlTimeBasedTriggerImpl();
-//        ds.setTrigger(activator);
-//        SqlTimeCalculatorImpl loadCalculator = new SqlTimeCalculatorImpl();
-//        loadCalculator.setConnTimeoutMillis(1);
-//        loadCalculator.setSqlTimeRepo(SqlTimeBasedTriggerImplTest.createSqlTimeRepoMock());
-//        activator.setSqlTimeCalculator(loadCalculator);
-//        activator.init(ds);
-//        activator.run();
-//        Thread.sleep(200);
-//    }
+    @Test
+    public void shouldLogTimeoutExceptionIfWaitingForConnectionToMainDsTooLong() throws SQLException, InterruptedException, UnknownHostException {
+        // given:
+        Hades<SqlTimeBasedMonitorImpl> hades = new Hades<SqlTimeBasedMonitorImpl>(
+                createMockDataSource("mainDs", false, 1100),
+                createMockDataSource("failoverDs", false, 0),
+                "mainDs",
+                "failoverDsName");
+        SqlTimeCalculatorImpl loadCalculator =
+                new SqlTimeCalculatorImpl(
+                        hades, 1, null, SqlTimeBasedTimerTaskMonitorTest.createSqlTimeRepoMock(), "select", 1, 1);
+        SqlTimeBasedTimerTaskMonitor monitor = new SqlTimeBasedTimerTaskMonitor(
+                hades, 1, 1, 1, false, false, loadCalculator, 1, 1, 1);
+        monitor.init();
+
+        // when:
+        monitor.run();
+
+        // then:
+        assertEquals(ExceptionEnum.valueForException(new ConnTimeout("")), monitor.getLastQueryTimeNanos(true));
+    }
 
     @Test
     public void shouldLogTimeoutExceptionIfWaitingForConnectionToFailoverDsTooLong() {
@@ -203,8 +202,8 @@ public class HadesTest {
     }
 
     private Hades createMockFailoverDataSource(boolean failoverActive, boolean throwException) throws SQLException {
-        Hades<Trigger> ds = new Hades<Trigger>(createMockDataSource("mainDs", throwException), createMockDataSource("failoverDs", throwException), "m", "f");
-        Trigger activator = mock(Trigger.class);
+        Hades<Monitor> ds = new Hades<Monitor>(createMockDataSource("mainDs", throwException), createMockDataSource("failoverDs", throwException), "m", "f");
+        Monitor activator = mock(Monitor.class);
         when(activator.isFailoverActive()).thenReturn(failoverActive);
         when(activator.getHades()).thenReturn(ds);
         ds.init(activator);

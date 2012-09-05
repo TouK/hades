@@ -26,7 +26,5 @@ import pl.touk.hades.HadesMBean;
  */
 public interface SqlTimeBasedHadesMBean extends HadesMBean {
 
-    String getFailoverLoad();
-    String getMainLoad();
     String getLoadLog();
 }

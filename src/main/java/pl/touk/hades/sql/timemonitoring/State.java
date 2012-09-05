@@ -17,7 +17,6 @@ package pl.touk.hades.sql.timemonitoring;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pl.touk.hades.Hades;
 import pl.touk.hades.Utils;
 import pl.touk.hades.load.Load;
 import pl.touk.hades.load.LoadLevel;
@@ -44,7 +43,7 @@ public class State implements Serializable, Cloneable {
     private Load load;
     private Average avg;
     private Average avgFailover;
-    private String quartzInstanceId;
+    private String host;
     private SqlTimeHistory history;
     private SqlTimeHistory historyFailover;
     private MachineState machineState = Machine.initialState;
@@ -58,21 +57,25 @@ public class State implements Serializable, Cloneable {
     private final int currentToUnusedRatio;
     private final int backOffMultiplier;
     private final int backOffMaxRatio;
+    private final String mainDbName;
+    private final String failoverDbName;
 
     public State(SqlTimeBasedLoadFactory loadFactory,
-                 String quartzInstanceId,
+                 String host,
                  int sqlTimesIncludedInAverage,
                  boolean exceptionsIgnoredAfterRecovery,
                  boolean recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery,
                  int currentToUnusedRatio,
                  int backOffMultiplier,
-                 int backOffMaxRatio) {
+                 int backOffMaxRatio,
+                 String mainDbName,
+                 String failoverDbName) {
         Utils.assertNotNull(loadFactory, "loadFactory");
         Utils.assertPositive(currentToUnusedRatio, "currentToUnusedRatio");
         Utils.assertPositive(backOffMultiplier, "backOffMultiplier");
         Utils.assertPositive(backOffMaxRatio, "backOffMaxRatio");
 
-        this.quartzInstanceId = quartzInstanceId;
+        this.host = host;
         this.modifyTimeMillis = System.currentTimeMillis();
         this.avg = null;
         this.avgFailover = null;
@@ -88,12 +91,14 @@ public class State implements Serializable, Cloneable {
         this.currentToUnusedRatio = currentToUnusedRatio;
         this.backOffMultiplier = backOffMultiplier;
         this.backOffMaxRatio = backOffMaxRatio;
+        this.mainDbName = mainDbName;
+        this.failoverDbName = failoverDbName;
 
         assert isLocalState() && !isLocalStateCombinedWithRemoteOne() && !isRemoteState();
     }
 
     public State(String instanceId, long modifyTimeMillis, boolean failover, long lastMainQueryTimeNanos, long lastFailoverQueryTimeNanos) {
-        this.quartzInstanceId = instanceId;
+        this.host = instanceId;
         this.modifyTimeMillis = modifyTimeMillis;
         this.avg = new Average(lastMainQueryTimeNanos, 1, lastMainQueryTimeNanos);
         this.avgFailover = new Average(lastFailoverQueryTimeNanos, 1, lastFailoverQueryTimeNanos);
@@ -109,6 +114,8 @@ public class State implements Serializable, Cloneable {
         this.currentToUnusedRatio = -1;
         this.backOffMultiplier = -1;
         this.backOffMaxRatio = -1;
+        this.mainDbName = null;
+        this.failoverDbName = null;
 
         assert !isLocalState() && !isLocalStateCombinedWithRemoteOne() && isRemoteState();
     }
@@ -157,8 +164,8 @@ public class State implements Serializable, Cloneable {
         return machineState;
     }
 
-    public String getQuartzInstanceId() {
-        return quartzInstanceId;
+    public String getHost() {
+        return host;
     }
 
     // equals and hashCode methods auto-generated using all fields:
@@ -183,7 +190,7 @@ public class State implements Serializable, Cloneable {
         if (loadFactory != null ? !loadFactory.equals(state.loadFactory) : state.loadFactory != null) return false;
         if (machineState != null ? !machineState.equals(state.machineState) : state.machineState != null) return false;
         if (!Arrays.equals(period, state.period)) return false;
-        if (quartzInstanceId != null ? !quartzInstanceId.equals(state.quartzInstanceId) : state.quartzInstanceId != null)
+        if (host != null ? !host.equals(state.host) : state.host != null)
             return false;
 
         return true;
@@ -195,7 +202,7 @@ public class State implements Serializable, Cloneable {
         result = 31 * result + (load != null ? load.hashCode() : 0);
         result = 31 * result + (avg != null ? avg.hashCode() : 0);
         result = 31 * result + (avgFailover != null ? avgFailover.hashCode() : 0);
-        result = 31 * result + (quartzInstanceId != null ? quartzInstanceId.hashCode() : 0);
+        result = 31 * result + (host != null ? host.hashCode() : 0);
         result = 31 * result + (history != null ? history.hashCode() : 0);
         result = 31 * result + (historyFailover != null ? historyFailover.hashCode() : 0);
         result = 31 * result + (machineState != null ? machineState.hashCode() : 0);
@@ -216,7 +223,7 @@ public class State implements Serializable, Cloneable {
                 ", load=" + load +
                 ", avg=" + avg +
                 ", avgFailover=" + avgFailover +
-                ", quartzInstanceId='" + quartzInstanceId + '\'' +
+                ", host='" + host + '\'' +
                 ", history=" + history +
                 ", historyFailover=" + historyFailover +
                 ", machineState=" + machineState +
@@ -229,7 +236,10 @@ public class State implements Serializable, Cloneable {
                 '}';
     }
 
-    public void updateLocalStateWithNewExecTimes(String logPrefix, Hades hades, long mainDbStmtExecTimeNanos, long failoverDbStmtExecTimeNanos, String quartzInstanceId) {
+    public void updateLocalStateWithNewExecTimes(String logPrefix,
+                                                 long mainDbStmtExecTimeNanos,
+                                                 long failoverDbStmtExecTimeNanos,
+                                                 String host) {
         if (!isLocalState()) {
             throw new IllegalStateException("this state must be a local one");
         }
@@ -238,20 +248,36 @@ public class State implements Serializable, Cloneable {
 
         if (mainDbStmtExecTimeNanos != notMeasuredInThisCycle) {
             Utils.assertNonNegative(mainDbStmtExecTimeNanos, "mainDbStmtExecTimeNanos");
+            Utils.assertSame(0, cycleModuloPeriod[mainIndex], "main db load was measured though its cycleModuloPeriod != 0");
             this.avg = history.updateAverage(mainDbStmtExecTimeNanos);
+        } else {
+            Utils.assertNonZero(cycleModuloPeriod[mainIndex], "cycleModuloPeriod for main db");
         }
         if (failoverDbStmtExecTimeNanos != notMeasuredInThisCycle) {
             Utils.assertNonNegative(failoverDbStmtExecTimeNanos, "failoverDbStmtExecTimeNanos");
+            if (!sqlTimeIsMeasuredInThisCycle(true)) {
+                if (failoverDbStmtExecTimeNanos != ExceptionEnum.connException.value()
+                        && failoverDbStmtExecTimeNanos != ExceptionEnum.connTimeout.value()
+                        && failoverDbStmtExecTimeNanos != ExceptionEnum.unexpectedException.value()) {
+                    throw new IllegalArgumentException("failover db load should not be measured in this cycle so "
+                            + "failoverDbStmtExecTimeNanos should be one of " + notMeasuredInThisCycle
+                            + " (notMeasuredInThisCycle), " + ExceptionEnum.connException + ", "
+                            + ExceptionEnum.connTimeout + " or " + ExceptionEnum.unexpectedException);
+                }
+            }
+            Utils.assertSame(0, cycleModuloPeriod[failoverIndex], "failover db load was measured even though its cycleModuloPeriod != 0");
             this.avgFailover = historyFailover.updateAverage(failoverDbStmtExecTimeNanos);
+        } else {
+            Utils.assertNonZero(cycleModuloPeriod[failoverIndex], "cycleModuloPeriod for failover db");
         }
 
         this.load = loadFactory.getLoad(avg.getValue(), avgFailover.getValue());
         MachineState oldMachineState = machineState;
         this.machineState = stateMachine.transition(oldMachineState, this.load);
-        this.quartzInstanceId = quartzInstanceId;
+        this.host = host;
 
-        updateCycleAndPeriod(logPrefix + hades.getDsName(false, true) + ": ", mainDbStmtExecTimeNanos, oldMachineState, mainIndex);
-        updateCycleAndPeriod(logPrefix + hades.getDsName(true, true) + ": ", failoverDbStmtExecTimeNanos, oldMachineState, failoverIndex);
+        updateCycleAndPeriod(logPrefix + mainDbName + ": ", mainDbStmtExecTimeNanos, oldMachineState, mainIndex);
+        updateCycleAndPeriod(logPrefix + failoverDbName + ": ", failoverDbStmtExecTimeNanos, oldMachineState, failoverIndex);
     }
 
     private void updateCycleAndPeriod(String logPrefix, long dbStmtExecTimeNanos, MachineState oldMachineState, int index) {
@@ -352,7 +378,7 @@ public class State implements Serializable, Cloneable {
         this.load = localOrRemote.load;
         this.avg = localOrRemote.avg;
         this.avgFailover = localOrRemote.avgFailover;
-        this.quartzInstanceId = localOrRemote.quartzInstanceId;
+        this.host = localOrRemote.host;
         this.machineState = localOrRemote.machineState;
         this.period[mainIndex] = localOrRemote.period[mainIndex];
         this.period[failoverIndex] = localOrRemote.period[failoverIndex];
@@ -384,5 +410,13 @@ public class State implements Serializable, Cloneable {
 
     public boolean sqlTimeIsMeasuredInThisCycle(boolean failover) {
         return cycleModuloPeriod[failover ? failoverIndex : mainIndex] == 0;
+    }
+
+    public int getPeriod(boolean failover) {
+        return period[failover ? failoverIndex : mainIndex];
+    }
+
+    public int getCycleModuloPeriod(boolean failover) {
+        return cycleModuloPeriod[failover ? failoverIndex : mainIndex];
     }
 }

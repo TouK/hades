@@ -27,7 +27,10 @@ public class SafeSqlExecutor {
         this(sqlExecTimeout, sqlExecTimeoutForcingPeriodMillis, dsDesc, null);
     }
 
-    public SafeSqlExecutor(int sqlExecTimeout, int sqlExecTimeoutForcingPeriodMillis, String dsDesc, ExecutorService externalExecutor) {
+    public SafeSqlExecutor(int sqlExecTimeout,
+                           int sqlExecTimeoutForcingPeriodMillis,
+                           String dsDesc,
+                           ExecutorService externalExecutor) {
         Utils.assertNonNegative(sqlExecTimeout, "sqlExecTimeout");
         Utils.assertNonNegative(sqlExecTimeoutForcingPeriodMillis, "sqlExecTimeoutForcingPeriodMillis");
 
