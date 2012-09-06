@@ -27,7 +27,6 @@ limitations under the License.
     <groupId>pl.touk.hades</groupId>
     <artifactId>hades-core</artifactId>
     <packaging>jar</packaging>
-    <version>2.0.0-SNAPSHOT</version>
     <url>http://touk.github.com/hades/</url>
     <name>Hades Core</name>
     <description>Core classes of Hades project.</description>
