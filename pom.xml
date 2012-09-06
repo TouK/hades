@@ -25,11 +25,11 @@ limitations under the License.
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>pl.touk.hades</groupId>
-    <artifactId>hades-parent</artifactId>
+    <artifactId>hades</artifactId>
     <packaging>pom</packaging>
     <version>2.0.0-SNAPSHOT</version>
     <url>http://touk.github.com/hades/</url>
-    <name>Hades Parent</name>
+    <name>Hades</name>
     <description>
         Hades is a java project that provides a HA (high availability) data source.
         This HA data source contains two other data sources - the main one and the
@@ -60,7 +60,8 @@ limitations under the License.
     </developers>
 
     <modules>
-        <module>hades</module>
+        <module>hades-core</module>
+        <module>hades-quartz</module>
     </modules>
 
     <build>

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xsi:schemaLocation="
+            http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+            http://www.springframework.org/schema/util  http://www.springframework.org/schema/util/spring-util-2.0.xsd
+       ">
+
+    <import resource="quartz_db.xml"/>
+
+    <bean id="DHLITE" class="org.mockito.Mockito" factory-method="mock">
+        <constructor-arg value="javax.sql.DataSource"/>
+    </bean>
+
+    <bean id="DH" class="org.mockito.Mockito" factory-method="mock">
+        <constructor-arg value="javax.sql.DataSource"/>
+    </bean>
+
+    <bean id="NASA" class="org.mockito.Mockito" factory-method="mock">
+        <constructor-arg value="javax.sql.DataSource"/>
+    </bean>
+
+    <bean id="executor" class="java.util.concurrent.Executors" factory-method="newCachedThreadPool"/>
+    <!--destroy-method="shutdownNow"/>-->
+
+    <bean id="hadesAlfa" class="pl.touk.hades.sql.timemonitoring.SqlTimeBasedHades">
+        <constructor-arg name="mainDataSource" ref="DHLITE"/>
+        <constructor-arg name="failoverDataSource" ref="DH"/>
+        <constructor-arg name="mainDsName" value="DHLITE"/>
+        <constructor-arg name="failoverDsName" value="DH"/>
+    </bean>
+
+    <bean id="hadesBeta" class="pl.touk.hades.sql.timemonitoring.SqlTimeBasedHades">
+        <constructor-arg name="mainDataSource" ref="NASA"/>
+        <constructor-arg name="failoverDataSource" ref="DH"/>
+        <constructor-arg name="mainDsName" value="NASA"/>
+        <constructor-arg name="failoverDsName" value="DH"/>
+    </bean>
+
+    <util:properties id="hadesProps" location="classpath:integration/quartz.properties"/>
+
+    <bean id="schedulerFactory" class="org.quartz.impl.StdSchedulerFactory">
+        <constructor-arg name="props" ref="hadesProps"/>
+    </bean>
+
+    <bean id="scheduler" factory-bean="schedulerFactory" factory-method="getScheduler"/>
+
+    <bean id="quartzCluster" factory-bean="scheduler" factory-method="getSchedulerName"/>
+
+    <bean id="hadesAlfaMainDs"     factory-bean="hadesAlfa" factory-method="getMainDsName"/>
+    <bean id="hadesAlfaFailoverDs" factory-bean="hadesAlfa" factory-method="getFailoverDsName"/>
+
+    <bean id="hadesBetaMainDs"     factory-bean="hadesBeta" factory-method="getMainDsName"/>
+    <bean id="hadesBetaFailoverDs" factory-bean="hadesBeta" factory-method="getFailoverDsName"/>
+
+    <bean id="repo" class="pl.touk.hades.sql.timemonitoring.QuartzRepoJdbcImpl">
+        <constructor-arg name="borrowExistingMatchingResultIfYoungerThanMillis" value="10000"/>
+        <constructor-arg name="dataSource"                                      ref="quartzDs"/>
+        <constructor-arg name="connTimeoutMillis"                               value="1000"/>
+        <constructor-arg name="sqlExecTimeout"                                  value="1"/>
+        <constructor-arg name="sqlExecTimeoutForcingPeriodMillis"               value="1000"/>
+        <constructor-arg name="externalExecutor"                                ref="executor"/>
+        <constructor-arg name="quartzCluster"                                   ref="quartzCluster"/>
+    </bean>
+
+    <bean id="calcAlfa" class="pl.touk.hades.sql.timemonitoring.SqlTimeQuartzCalculatorImpl">
+        <constructor-arg name="hades"                             ref="hadesAlfa"/>
+        <constructor-arg name="connTimeoutMillis"                 value="1000"/>
+        <constructor-arg name="externalExecutor"                  ref="executor"/>
+        <constructor-arg name="repo"                              ref="repo"/>
+        <constructor-arg name="sql"                               value="SELECT CURRENT_TIMESTAMP"/>
+        <constructor-arg name="sqlExecTimeout"                    value="2"/>
+        <constructor-arg name="sqlExecTimeoutForcingPeriodMillis" value="2000"/>
+    </bean>
+
+    <bean id="calcBeta" class="pl.touk.hades.sql.timemonitoring.SqlTimeQuartzCalculatorImpl">
+        <constructor-arg name="hades"                             ref="hadesBeta"/>
+        <constructor-arg name="connTimeoutMillis"                 value="1000"/>
+        <constructor-arg name="externalExecutor"                  ref="executor"/>
+        <constructor-arg name="repo"                              ref="repo"/>
+        <constructor-arg name="sql"                               value="SELECT CURRENT_TIMESTAMP"/>
+        <constructor-arg name="sqlExecTimeout"                    value="2"/>
+        <constructor-arg name="sqlExecTimeoutForcingPeriodMillis" value="2000"/>
+    </bean>
+
+    <bean id="cronAlfa" class="pl.touk.hades.StringFactory" />
+    <bean id="cronBeta" class="pl.touk.hades.StringFactory" />
+
+    <bean id="monitorAlfa" class="pl.touk.hades.sql.timemonitoring.SqlTimeBasedQuartzMonitor" init-method="init" lazy-init="true">
+        <constructor-arg name="hades"                                                   ref="hadesAlfa"/>
+        <constructor-arg name="sqlTimeTriggeringFailoverMillis"                         value="600"/>
+        <constructor-arg name="sqlTimeTriggeringFailbackMillis"                         value="200"/>
+        <constructor-arg name="sqlTimesIncludedInAverage"                               value="5"/>
+        <constructor-arg name="exceptionsIgnoredAfterRecovery"                          value="true"/>
+        <constructor-arg name="recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery"   value="false"/>
+        <constructor-arg name="calc"                                                    ref="calcAlfa"/>
+        <constructor-arg name="repo"                                                    ref="repo"/>
+        <constructor-arg name="currentToUnusedRatio"                                    value="5"/>
+        <constructor-arg name="backOffMultiplier"                                       value="3"/>
+        <constructor-arg name="backOffMaxRatio"                                         value="15"/>
+        <constructor-arg name="cron"                                                    ref="cronAlfa"/>
+        <constructor-arg name="startDelayMillis"                                        value="0"/>
+        <constructor-arg name="syncAttemptDelayMillis"                                  value="1000"/>
+        <constructor-arg name="scheduler"                                               ref="scheduler"/>
+        <constructor-arg name="syncExecutor"                                            ref="executor"/>
+        <constructor-arg name="monitoringMethodDurationHistorySize"                     value="5"/>
+    </bean>
+
+    <bean id="monitorBeta" class="pl.touk.hades.sql.timemonitoring.SqlTimeBasedQuartzMonitor" init-method="init" lazy-init="true">
+        <constructor-arg name="hades"                                                   ref="hadesBeta"/>
+        <constructor-arg name="sqlTimeTriggeringFailoverMillis"                         value="600"/>
+        <constructor-arg name="sqlTimeTriggeringFailbackMillis"                         value="200"/>
+        <constructor-arg name="sqlTimesIncludedInAverage"                               value="5"/>
+        <constructor-arg name="exceptionsIgnoredAfterRecovery"                          value="true"/>
+        <constructor-arg name="recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery"   value="false"/>
+        <constructor-arg name="calc"                                                    ref="calcBeta"/>
+        <constructor-arg name="repo"                                                    ref="repo"/>
+        <constructor-arg name="currentToUnusedRatio"                                    value="5"/>
+        <constructor-arg name="backOffMultiplier"                                       value="3"/>
+        <constructor-arg name="backOffMaxRatio"                                         value="15"/>
+        <constructor-arg name="cron"                                                    ref="cronBeta"/>
+        <constructor-arg name="startDelayMillis"                                        value="0"/>
+        <constructor-arg name="syncAttemptDelayMillis"                                  value="1000"/>
+        <constructor-arg name="scheduler"                                               ref="scheduler"/>
+        <constructor-arg name="syncExecutor"                                            ref="executor"/>
+        <constructor-arg name="monitoringMethodDurationHistorySize"                     value="5"/>
+    </bean>
+
+</beans>
