@@ -2,7 +2,9 @@ package pl.touk.hades.sql.timemonitoring;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.quartz.Scheduler;
@@ -61,6 +63,9 @@ public class HadesIT {
     private static final Logger logger = LoggerFactory.getLogger(HadesIT.class);
 
     private static final String separator = " ";
+
+    @Rule
+    public TestName testName = new TestName();
 
     private Machine host1;
     private Machine host2;
@@ -364,7 +369,7 @@ public class HadesIT {
             builder = new ProcessBuilder(Arrays.asList("java", "-Dlog4j.configuration=" + log4jConfiguration, "-cp", System.getProperty("java.class.path"), this.getClass().getName(), Integer.toString(masterSocket.getLocalPort()), context, name));
         }
         Machine machine = new Machine(builder.start(), masterSocket, name);
-        machine.instructSlave(CmdName.ping);
+        machine.instructSlave(CmdName.ping.withArgs(testName.getMethodName()));
         return machine;
     }
 
