@@ -1,5 +1,5 @@
 -classpath
-'/home/sokol/git/github/hades/target/checkout/hades-quartz-smx3/hades-quartz-smx3/target/classes:/home/sokol/.m2/repository/org/quartz-scheduler/quartz-oracle/1.8.6/quartz-oracle-1.8.6.jar:/home/sokol/git/github/hades/target/checkout/hades-quartz/target/hades-quartz-2.0.3.jar:/home/sokol/.m2/repository/commons-collections/commons-collections/3.2.1/commons-collections-3.2.1.jar:/usr/lib/jvm/java-6-sun-1.6.0.24/jre/../lib/tools.jar:/home/sokol/.m2/repository/org/fusesource/commonman/commons-management/1.0/commons-management-1.0.jar:/home/sokol/.m2/repository/org/springframework/spring-aop/3.0.3.RELEASE/spring-aop-3.0.3.RELEASE.jar:/home/sokol/.m2/repository/org/quartz-scheduler/quartz/1.8.6/quartz-1.8.6.jar:/home/sokol/.m2/repository/org/apache/camel/camel-quartz/2.4.0/camel-quartz-2.4.0.jar:/home/sokol/.m2/repository/commons-logging/commons-logging-api/1.1/commons-logging-api-1.1.jar:/home/sokol/.m2/repository/org/apache/camel/camel-core/2.4.0/camel-core-2.4.0.jar:/home/sokol/.m2/repository/org/springframework/spring-context/3.0.3.RELEASE/spring-context-3.0.3.RELEASE.jar:/home/sokol/.m2/repository/org/apache/camel/camel-spring/2.4.0/camel-spring-2.4.0.jar:/home/sokol/.m2/repository/org/springframework/spring-tx/3.0.3.RELEASE/spring-tx-3.0.3.RELEASE.jar'
+'/home/sokol/git/github/hades/target/checkout/hades-quartz-smx3/hades-quartz-smx3/target/classes:/home/sokol/.m2/repository/org/quartz-scheduler/quartz-oracle/1.8.6/quartz-oracle-1.8.6.jar:/home/sokol/git/github/hades/target/checkout/hades-quartz/target/hades-quartz-2.0.4.jar:/home/sokol/.m2/repository/commons-collections/commons-collections/3.2.1/commons-collections-3.2.1.jar:/usr/lib/jvm/java-6-sun-1.6.0.24/jre/../lib/tools.jar:/home/sokol/.m2/repository/org/fusesource/commonman/commons-management/1.0/commons-management-1.0.jar:/home/sokol/.m2/repository/org/springframework/spring-aop/3.0.3.RELEASE/spring-aop-3.0.3.RELEASE.jar:/home/sokol/.m2/repository/org/quartz-scheduler/quartz/1.8.6/quartz-1.8.6.jar:/home/sokol/.m2/repository/org/apache/camel/camel-quartz/2.4.0/camel-quartz-2.4.0.jar:/home/sokol/.m2/repository/commons-logging/commons-logging-api/1.1/commons-logging-api-1.1.jar:/home/sokol/.m2/repository/org/apache/camel/camel-core/2.4.0/camel-core-2.4.0.jar:/home/sokol/.m2/repository/org/springframework/spring-context/3.0.3.RELEASE/spring-context-3.0.3.RELEASE.jar:/home/sokol/.m2/repository/org/apache/camel/camel-spring/2.4.0/camel-spring-2.4.0.jar:/home/sokol/.m2/repository/org/springframework/spring-tx/3.0.3.RELEASE/spring-tx-3.0.3.RELEASE.jar'
 -encoding
 'UTF-8'
 -protected
@@ -15,7 +15,7 @@
 -docencoding
 'UTF-8'
 -doctitle
-'hades-quartz-smx3 2.0.3 API'
+'hades-quartz-smx3 2.0.4 API'
 -linkoffline
 'http://download.oracle.com/javase/1.5.0/docs/api' '/home/sokol/git/github/hades/target/checkout/hades-quartz-smx3/hades-quartz-smx3/target/javadoc-bundle-options'
 -linkoffline
@@ -23,4 +23,4 @@
 -use
 -version
 -windowtitle
-'hades-quartz-smx3 2.0.3 API'
+'hades-quartz-smx3 2.0.4 API'
