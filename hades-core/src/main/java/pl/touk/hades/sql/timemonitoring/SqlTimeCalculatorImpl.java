@@ -116,8 +116,8 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
         if (state.sqlTimeIsMeasuredInThisCycle(failover)) {
             time = repo.findSqlTimeYoungerThan(logPrefix, dsName, sql);
         } else {
-            logger.debug(logPrefix + "not measured in this cycle (only getConnection is executed)");
-            time = State.notMeasuredInThisCycle;
+            logger.debug(logPrefix + "not measured in this cycle");
+            return State.notMeasuredInThisCycle;
         }
 
         Connection connection = null;

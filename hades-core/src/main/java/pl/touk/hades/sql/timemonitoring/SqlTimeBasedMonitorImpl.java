@@ -84,7 +84,7 @@ public class SqlTimeBasedMonitorImpl implements SqlTimeBasedMonitor {
         connectionListener.set(listener);
     }
 
-    State run(String logPrefix) {
+    public State run(String logPrefix) {
         logger.debug(logPrefix + "run started");
         try {
             long[] times = calc.calculateMainAndFailoverSqlTimesNanos(indent(logPrefix), getState());
@@ -160,7 +160,7 @@ public class SqlTimeBasedMonitorImpl implements SqlTimeBasedMonitor {
         }
     }
 
-    State setState(String logPrefixIfFullState, State newState) {
+    public State setState(String logPrefixIfFullState, State newState) {
         State oldState;
         synchronized (state) {
             oldState = state.clone();

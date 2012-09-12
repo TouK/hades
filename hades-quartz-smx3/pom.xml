@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>pl.touk.esb</groupId>
+        <artifactId>common-service-pom</artifactId>
+        <version>1.0.7</version>
+    </parent>
+    <!--<parent>-->
+        <!--<groupId>pl.touk.hades</groupId>-->
+        <!--<artifactId>hades</artifactId>-->
+        <!--<version>2.0.2-SNAPSHOT</version>-->
+    <!--</parent>-->
+
+    <groupId>pl.touk.hades</groupId>
+    <artifactId>hades-quartz-smx3-parent</artifactId>
+    <name>hades-quartz-smx3-parent</name>
+    <packaging>pom</packaging>
+
+    <properties>
+        <camel-version>2.4</camel-version>
+    </properties>
+
+    <modules>
+        <module>hades-quartz-smx</module>
+        <module>hades-quartz-smx-sa</module>
+        <module>sample-sql</module>
+        <module>sample-trigger</module>
+        <module>sample-sa</module>
+    </modules>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.servicemix.tooling</groupId>
+                <artifactId>jbi-maven-plugin</artifactId>
+                <version>4.1.touk.3</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <serviceUnitAnalyzerArtifact>pl.touk.jbi:jbiPluginExtension:0.0.4</serviceUnitAnalyzerArtifact>
+                    <serviceUnitArtifactsDir>${basedir}/target/classes</serviceUnitArtifactsDir>
+                    <jbiServicesFile>${basedir}/target/classes/jbi-services.xml</jbiServicesFile>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>2.0.2</version>
+                <configuration>
+                    <source>1.5</source>
+                    <target>1.5</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <version>2.0</version>
+                <configuration>
+                    <autoVersionSubmodules>true</autoVersionSubmodules>
+                    <preparationGoals>clean install</preparationGoals>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+
+
+</project>

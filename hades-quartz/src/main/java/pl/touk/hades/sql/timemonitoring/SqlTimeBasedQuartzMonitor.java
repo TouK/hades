@@ -355,7 +355,8 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
             jobDetail.setJobDataMap(createHadesJobDataMap());
             storeMonitor();
             scheduler.addJob(jobDetail, false);
-            Trigger t = new CronTrigger(hadesQuartzTrigger, hadesQuartzGroup, hadesQuartzJob, hadesQuartzGroup, new Date(System.currentTimeMillis() + startDelayMillis), null, cron);
+            Trigger t = new CronTrigger(hadesQuartzTrigger, hadesQuartzGroup, hadesQuartzJob, hadesQuartzGroup,
+                    new Date(System.currentTimeMillis() + startDelayMillis), null, cron);
             firstFireTime[0] = scheduler.scheduleJob(t);
             logger.info("scheduled with first fire time " + Utils.format(firstFireTime[0]) + ": " + s);
             return t;

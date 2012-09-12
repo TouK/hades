@@ -1,0 +1,27 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+    <parent>
+        <groupId>pl.touk.hades</groupId>
+        <artifactId>hades-quartz-smx3-parent</artifactId>
+        <version>2.0.2-SNAPSHOT</version>
+    </parent>
+
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>pl.touk.hades</groupId>
+    <artifactId>sample-trigger</artifactId>
+    <name>sample-trigger</name>
+    <packaging>jbi-service-unit</packaging>
+
+    <properties>
+        <componentName>servicemix-quartz</componentName>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.servicemix</groupId>
+            <artifactId>servicemix-quartz</artifactId>
+            <version>2008.01</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+</project>

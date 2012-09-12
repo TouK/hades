@@ -24,14 +24,14 @@ import java.io.Serializable;
  * A factory that produces an instance of {@link pl.touk.hades.load.Load} class when given a pair of numeric values: the main database load
  * and the failover database load. Such a numeric pair is transformed into a load (which is descriptive rather than
  * numeric) as follows.
- * Each factory holds two numeric values: <code>sqlTimeTriggeringFailbackNanos</code> and
+ * Each factory holds two numeric values: <code>failbackThresholdNanos</code> and
  * <code>statementExecutionTimeLimitTriggeringFailbackNanos</code> (which can be set in {@link #SqlTimeBasedLoadFactory(long, long)}),
  * where the first value must not be less than the second value.
  * Numeric values not greater than <code>statementExecutionTimeLimitTriggeringFailbackNanos</code>
  * indicate {@link LoadLevel#low low} load level.
  * Numeric values greater than <code>statementExecutionTimeLimitTriggeringFailbackNanos</code> and not greater than
- * <code>sqlTimeTriggeringFailbackNanos</code> indicate {@link LoadLevel#medium medium} load level.
- * Numeric values greater than <code>sqlTimeTriggeringFailbackNanos</code> and less than
+ * <code>failbackThresholdNanos</code> indicate {@link LoadLevel#medium medium} load level.
+ * Numeric values greater than <code>failbackThresholdNanos</code> and less than
  * <code>Long.MAX_VALUE</code>
  * indicate {@link LoadLevel#high high} load level. Numeric values greater than or equal to
  * {@link ExceptionEnum#minErroneousValue() ExceptionEnum.minErroneousValue()}
@@ -43,30 +43,33 @@ public class SqlTimeBasedLoadFactory implements Serializable {
 
     private static final long serialVersionUID = 1278912990679817475L;
 
-    private final long sqlTimeTriggeringFailbackNanos;
-    private final long sqlTimeTriggeringFailoverNanos;
+    private final long failbackThresholdNanos;
+    private final long failoverThresholdNanos;
 
     /**
      * Constructs a factory with the given higher and lower limits.
      *
-     * @param sqlTimeTriggeringFailoverNanos higher limit
-     * @param sqlTimeTriggeringFailbackNanos lower limit
+     * @param failoverThresholdNanos higher limit
+     * @param failbackThresholdNanos lower limit
      */
-    public SqlTimeBasedLoadFactory(long sqlTimeTriggeringFailoverNanos, long sqlTimeTriggeringFailbackNanos) {
-        if (sqlTimeTriggeringFailoverNanos < sqlTimeTriggeringFailbackNanos) {
-            throw new IllegalArgumentException("sqlTimeTriggeringFailoverNanos < sqlTimeTriggeringFailbackNanos");
+    public SqlTimeBasedLoadFactory(long failoverThresholdNanos, long failbackThresholdNanos) {
+        if (failoverThresholdNanos <= 0) {
+            throw new IllegalArgumentException("failoverThresholdNanos <= 0");
         }
-        if (sqlTimeTriggeringFailoverNanos <= 0) {
-            throw new IllegalArgumentException("sqlTimeTriggeringFailoverNanos <= 0");
+        if (failbackThresholdNanos <= 0) {
+            throw new IllegalArgumentException("failbackThresholdNanos <= 0");
         }
-        if (sqlTimeTriggeringFailbackNanos <= 0) {
-            throw new IllegalArgumentException("sqlTimeTriggeringFailbackNanos <= 0");
+        if (failoverThresholdNanos >= ExceptionEnum.minErroneousValue()) {
+            throw new IllegalArgumentException("failoverThresholdNanos >= minimum erroneous value (" + ExceptionEnum.minErroneousValueAsStr() + ")");
         }
-        if (sqlTimeTriggeringFailoverNanos >= ExceptionEnum.minErroneousValue()) {
-            throw new IllegalArgumentException("sqlTimeTriggeringFailoverNanos >= " + ExceptionEnum.minErroneousValueAsStr());
+        if (failbackThresholdNanos >= ExceptionEnum.minErroneousValue()) {
+            throw new IllegalArgumentException("failbackThresholdNanos >= minimum erroneous value (" + ExceptionEnum.minErroneousValueAsStr() + ")");
         }
-        this.sqlTimeTriggeringFailoverNanos = sqlTimeTriggeringFailoverNanos;
-        this.sqlTimeTriggeringFailbackNanos = sqlTimeTriggeringFailbackNanos;
+        if (failoverThresholdNanos < failbackThresholdNanos) {
+            throw new IllegalArgumentException("failoverThresholdNanos < failbackThresholdNanos");
+        }
+        this.failoverThresholdNanos = failoverThresholdNanos;
+        this.failbackThresholdNanos = failbackThresholdNanos;
     }
 
     public Load getLoad(long mainDbLoadNanos, long failoverDbLoadNanos) {
@@ -84,9 +87,9 @@ public class SqlTimeBasedLoadFactory implements Serializable {
             throw new IllegalArgumentException("loadNanos must not be less than zero: " + loadNanos);
         }
 
-        if (loadNanos <= sqlTimeTriggeringFailbackNanos) {
+        if (loadNanos <= failbackThresholdNanos) {
             return LoadLevel.low;
-        } else if (loadNanos <= sqlTimeTriggeringFailoverNanos) {
+        } else if (loadNanos <= failoverThresholdNanos) {
             return LoadLevel.medium;
         } else if (loadNanos < ExceptionEnum.minErroneousValue()) {
             return LoadLevel.high;
@@ -102,24 +105,24 @@ public class SqlTimeBasedLoadFactory implements Serializable {
 
         SqlTimeBasedLoadFactory that = (SqlTimeBasedLoadFactory) o;
 
-        if (sqlTimeTriggeringFailbackNanos != that.sqlTimeTriggeringFailbackNanos) return false;
-        if (sqlTimeTriggeringFailoverNanos != that.sqlTimeTriggeringFailoverNanos) return false;
+        if (failbackThresholdNanos != that.failbackThresholdNanos) return false;
+        if (failoverThresholdNanos != that.failoverThresholdNanos) return false;
 
         return true;
     }
 
     @Override
     public int hashCode() {
-        int result = (int) (sqlTimeTriggeringFailbackNanos ^ (sqlTimeTriggeringFailbackNanos >>> 32));
-        result = 31 * result + (int) (sqlTimeTriggeringFailoverNanos ^ (sqlTimeTriggeringFailoverNanos >>> 32));
+        int result = (int) (failbackThresholdNanos ^ (failbackThresholdNanos >>> 32));
+        result = 31 * result + (int) (failoverThresholdNanos ^ (failoverThresholdNanos >>> 32));
         return result;
     }
 
-    public long getSqlTimeTriggeringFailbackNanos() {
-        return sqlTimeTriggeringFailbackNanos;
+    public long getFailbackThresholdNanos() {
+        return failbackThresholdNanos;
     }
 
-    public long getSqlTimeTriggeringFailoverNanos() {
-        return sqlTimeTriggeringFailoverNanos;
+    public long getFailoverThresholdNanos() {
+        return failoverThresholdNanos;
     }
 }

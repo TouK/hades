@@ -73,15 +73,15 @@ limitations under the License.
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>quartz</groupId>
+            <groupId>org.quartz-scheduler</groupId>
             <artifactId>quartz</artifactId>
-            <version>1.5.2</version>
+            <version>1.8.6</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>quartz</groupId>
+            <groupId>org.quartz-scheduler</groupId>
             <artifactId>quartz-oracle</artifactId>
-            <version>1.5.1</version>
+            <version>1.8.6</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

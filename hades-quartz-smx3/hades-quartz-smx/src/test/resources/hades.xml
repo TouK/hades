@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="
+            http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+       ">
+
+    <bean id="hadesAlfa" class="org.springframework.jndi.JndiObjectFactoryBean">
+        <property name="jndiName" value="java:/jdbc/hades_PC1_PC2"/>
+    </bean>
+
+    <bean id="hadesBeta" class="org.springframework.jndi.JndiObjectFactoryBean">
+        <property name="jndiName" value="java:/jdbc/hades_PC1_PC2"/>
+    </bean>
+
+    <bean id="quartzDs" class="org.springframework.jndi.JndiObjectFactoryBean">
+        <property name="jndiName" value="java:/jdbc/quartz"/>
+    </bean>
+
+    <bean id="executor" class="java.util.concurrent.Executors" factory-method="newCachedThreadPool" destroy-method="shutdownNow"/>
+
+    <bean id="quartzCluster" factory-bean="scheduler" factory-method="getSchedulerName"/>
+
+    <bean id="hadesAlfaMainDs"     factory-bean="hadesAlfa" factory-method="getMainDsName"/>
+    <bean id="hadesAlfaFailoverDs" factory-bean="hadesAlfa" factory-method="getFailoverDsName"/>
+
+    <bean id="hadesBetaMainDs"     factory-bean="hadesBeta" factory-method="getMainDsName"/>
+    <bean id="hadesBetaFailoverDs" factory-bean="hadesBeta" factory-method="getFailoverDsName"/>
+
+    <bean id="repo" class="pl.touk.hades.sql.timemonitoring.QuartzRepoJdbcImpl">
+        <constructor-arg index="0" value="10000"/>
+        <constructor-arg index="1" ref="quartzDs"/>
+        <constructor-arg index="2" value="1000"/>
+        <constructor-arg index="3" value="1"/>
+        <constructor-arg index="4" value="1000"/>
+        <constructor-arg index="5" ref="executor"/>
+        <constructor-arg index="6" ref="quartzCluster"/>
+    </bean>
+
+    <bean id="calcAlfa" class="pl.touk.hades.sql.timemonitoring.SqlTimeQuartzCalculatorImpl">
+        <constructor-arg index="0" ref="hadesAlfa"/>
+        <constructor-arg index="1" value="1000"/>
+        <constructor-arg index="2" ref="executor"/>
+        <constructor-arg index="3" ref="repo"/>
+        <constructor-arg index="4" value="SELECT CURRENT_TIMESTAMP"/>
+        <constructor-arg index="5" value="2"/>
+        <constructor-arg index="6" value="2000"/>
+    </bean>
+
+    <bean id="calcBeta" class="pl.touk.hades.sql.timemonitoring.SqlTimeQuartzCalculatorImpl">
+        <constructor-arg index="0" ref="hadesBeta"/>
+        <constructor-arg index="1" value="1000"/>
+        <constructor-arg index="2" ref="executor"/>
+        <constructor-arg index="3" ref="repo"/>
+        <constructor-arg index="4" value="SELECT CURRENT_TIMESTAMP"/>
+        <constructor-arg index="5" value="2"/>
+        <constructor-arg index="6" value="2000"/>
+    </bean>
+
+    <bean id="monitorAlfa" class="pl.touk.hades.sql.timemonitoring.SqlTimeBasedQuartzMonitor" init-method="init" lazy-init="true">
+        <constructor-arg index="0"  ref="hadesAlfa"/>
+        <constructor-arg index="1"  value="600"/>
+        <constructor-arg index="2"  value="200"/>
+        <constructor-arg index="3"  value="5"/>
+        <constructor-arg index="4"  value="true"/>
+        <constructor-arg index="5"  value="false"/>
+        <constructor-arg index="6"  ref="calcAlfa"/>
+        <constructor-arg index="7"  ref="repo"/>
+        <constructor-arg index="8"  value="5"/>
+        <constructor-arg index="9"  value="3"/>
+        <constructor-arg index="10" value="15"/>
+        <constructor-arg index="11" value="0/20 * * * * ?"/>
+        <constructor-arg index="12" value="0"/>
+        <constructor-arg index="13" value="1000"/>
+        <constructor-arg index="14" ref="scheduler"/>
+        <constructor-arg index="15" ref="executor"/>
+        <constructor-arg index="16" value="5"/>
+    </bean>
+
+    <bean id="monitorBeta" class="pl.touk.hades.sql.timemonitoring.SqlTimeBasedQuartzMonitor" init-method="init" lazy-init="true">
+        <constructor-arg index="0"  ref="hadesAlfa"/>
+        <constructor-arg index="1"  value="600"/>
+        <constructor-arg index="2"  value="200"/>
+        <constructor-arg index="3"  value="5"/>
+        <constructor-arg index="4"  value="true"/>
+        <constructor-arg index="5"  value="false"/>
+        <constructor-arg index="6"  ref="calcAlfa"/>
+        <constructor-arg index="7"  ref="repo"/>
+        <constructor-arg index="8"  value="5"/>
+        <constructor-arg index="9"  value="3"/>
+        <constructor-arg index="10" value="15"/>
+        <constructor-arg index="11" value="0/20 * * * * ?"/>
+        <constructor-arg index="12" value="0"/>
+        <constructor-arg index="13" value="1000"/>
+        <constructor-arg index="14" ref="scheduler"/>
+        <constructor-arg index="15" ref="executor"/>
+        <constructor-arg index="16" value="5"/>
+    </bean>
+
+</beans>

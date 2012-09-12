@@ -15,14 +15,16 @@
  */
 package pl.touk.hades.load.statemachine;
 
+import junit.framework.Assert;
 import org.junit.Test;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.fail;
+
+import static org.junit.Assert.*;
 import static pl.touk.hades.load.LoadLevel.*;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 
 import pl.touk.hades.load.Load;
 
@@ -42,6 +44,60 @@ public class MachineTest {
     }
 
     @Test
+    public void shouldKeepFailoverActiveAsLongAsMainLoadIsAtLeastMedium() {
+        Machine m = Machine.createStateMachine();
+        ArrayList<Load> atLeastMediumMainLoads = new ArrayList<Load>();
+        atLeastMediumMainLoads.addAll(Arrays.asList(
+                new Load(medium, low),
+                new Load(medium),
+                new Load(medium, true),
+                new Load(medium, false),
+                new Load(medium, medium),
+                new Load(high, low),
+                new Load(high, medium),
+                new Load(exceptionWhileMeasuring, medium)));
+        assertFailoverStillActiveOrAssertFailback(true, atLeastMediumMainLoads);
+    }
+
+    @Test
+    public void shouldFailbackWhenMainLoadTurnsFromMediumToLow() {
+        Machine m = Machine.createStateMachine();
+        ArrayList<Load> lowMainLoads = new ArrayList<Load>();
+        lowMainLoads.addAll(Arrays.asList(
+                new Load(low),
+                new Load(low, true),
+                new Load(low, false),
+                new Load(low, low),
+                new Load(low, medium),
+                new Load(low, high),
+                new Load(low, exceptionWhileMeasuring)));
+        assertFailoverStillActiveOrAssertFailback(false, lowMainLoads);
+    }
+
+    @Test
+    public void shouldFailbackWhenFailoverLoadTurnsFromMediumToHigh() {
+        Machine m = Machine.createStateMachine();
+        ArrayList<Load> lowMainLoads = new ArrayList<Load>();
+        lowMainLoads.addAll(Arrays.asList(
+                new Load(low, high),
+                new Load(low, exceptionWhileMeasuring),
+                new Load(medium, high),
+                new Load(medium, exceptionWhileMeasuring),
+                new Load(high, false)));
+        assertFailoverStillActiveOrAssertFailback(false, lowMainLoads);
+    }
+
+    private void assertFailoverStillActiveOrAssertFailback(boolean failover, List<Load> loads) {
+        Machine m = Machine.createStateMachine();
+        for (Load l: loads) {
+            assertEquals("" + l, failover, m.transition(new MachineState(true, new Load(medium)),         l).isFailoverActive());
+            assertEquals("" + l, failover, m.transition(new MachineState(true, new Load(medium, true)),   l).isFailoverActive());
+            assertEquals("" + l, failover, m.transition(new MachineState(true, new Load(medium, false)),  l).isFailoverActive());
+            assertEquals("" + l, failover, m.transition(new MachineState(true, new Load(medium, medium)), l).isFailoverActive());
+        }
+    }
+
+    @Test
     public void shouldMakeTransitions() {
         Machine stateMachine = createStateMachine();
         MachineState state = stateMachine.transition(new MachineState(false, low), new Load(high, true));
@@ -55,23 +111,35 @@ public class MachineTest {
     }
 
     @Test
-    public void shouldNotAllowTransitionFromLowToNotMeasuredYetForMainDb() {
-        shouldNotAllowTransitionToNotMeasuredYet(new Load(low                    , low), new Load(notMeasuredYet, low));
-        shouldNotAllowTransitionToNotMeasuredYet(new Load(medium                 , low), new Load(notMeasuredYet, low));
-        shouldNotAllowTransitionToNotMeasuredYet(new Load(high                   , low), new Load(notMeasuredYet, low));
-        shouldNotAllowTransitionToNotMeasuredYet(new Load(exceptionWhileMeasuring, low), new Load(notMeasuredYet, low));
-
-        shouldNotAllowTransitionToNotMeasuredYet(new Load(low, low)                    , new Load(low, notMeasuredYet));
-        shouldNotAllowTransitionToNotMeasuredYet(new Load(low, medium)                 , new Load(low, notMeasuredYet));
-        shouldNotAllowTransitionToNotMeasuredYet(new Load(low, high)                   , new Load(low, notMeasuredYet));
-        shouldNotAllowTransitionToNotMeasuredYet(new Load(low, exceptionWhileMeasuring), new Load(low, notMeasuredYet));
+    public void shouldNotAllowTransitionForBothLevelsHighWithoutSpecifyingWhichOneIsHigher() throws Exception {
+        try {
+            Machine.createStateMachine().transition(new MachineState(false, low), new Load(high));
+            fail();
+        } catch (IllegalArgumentException e) {
+            Assert.assertTrue(e.getMessage().contains("for Load{main=high,failover=high} not found"));
+        }
     }
 
-    private void shouldNotAllowTransitionToNotMeasuredYet(Load load1, Load load2) {
+    @Test
+    public void shouldNotAllowTransitionFromLowToNotMeasuredYet() {
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(low));
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(medium));
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(exceptionWhileMeasuring));
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(exceptionWhileMeasuring, true));
+        shouldNotAllowTransitionToNotMeasuredYet(new Load(exceptionWhileMeasuring, false));
+    }
+
+    @Test
+    public void shouldAllowTransitionFromNotMeasuredYetToNotMeasuredYet() {
+        assertFalse(Machine.createStateMachine().transition(new MachineState(false, notMeasuredYet, notMeasuredYet),
+                new Load(notMeasuredYet, notMeasuredYet)).isFailoverActive());
+    }
+
+    private void shouldNotAllowTransitionToNotMeasuredYet(Load l) {
         Machine stateMachine = Machine.createStateMachine();
-        MachineState state = stateMachine.transition(Machine.initialState, load1);
+        MachineState state = stateMachine.transition(Machine.initialState, l);
         try {
-            stateMachine.transition(state, load2);
+            stateMachine.transition(state, new Load(notMeasuredYet, notMeasuredYet));
             fail();
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("return to notMeasuredYet"));

@@ -146,7 +146,7 @@ public class RepoJdbcImpl implements Repo {
         this.host = InetAddress.getLocalHost().getHostName();
     }
 
-    Connection getConnection(String logPrefix)
+    public Connection getConnection(String logPrefix)
             throws UnexpectedException, ConnException, ConnTimeout, InterruptedException {
         return new DsSafeConnectionGetter(
                 connTimeoutMillis,
@@ -156,11 +156,11 @@ public class RepoJdbcImpl implements Repo {
         ).getConnectionWithTimeout(logPrefix);
     }
 
-    SafeSqlExecutor createExecutor() {
+    public SafeSqlExecutor createExecutor() {
         return createExecutor(hadesRepoDesc);
     }
 
-    SafeSqlExecutor createExecutor(String dsName) {
+    public SafeSqlExecutor createExecutor(String dsName) {
         return new SafeSqlExecutor(
                 sqlExecTimeout,
                 sqlExecTimeoutForcingPeriodMillis,
@@ -168,22 +168,22 @@ public class RepoJdbcImpl implements Repo {
                 externalExecutor);
     }
 
-    void execute(String logPrefix, PreparedStatement preparedStatement, boolean update, String sql)
+    public void execute(String logPrefix, PreparedStatement preparedStatement, boolean update, String sql)
             throws SqlExecException, SqlExecTimeout, UnexpectedException, InterruptedException {
         execute(logPrefix, preparedStatement, update, sql, hadesRepoDesc);
     }
 
-    void execute(String logPrefix, PreparedStatement preparedStatement, boolean update, String sql, String dsName)
+    public void execute(String logPrefix, PreparedStatement preparedStatement, boolean update, String sql, String dsName)
             throws SqlExecException, SqlExecTimeout, UnexpectedException, InterruptedException {
         createExecutor(dsName).execute(logPrefix, preparedStatement, update, sql);
     }
 
-    PreparedStatement prepareStmt(String logPrefix, Connection c, String sql)
+    public PreparedStatement prepareStmt(String logPrefix, Connection c, String sql)
             throws SqlExecTimeoutSettingException, PrepareStmtException {
         return Utils.safelyPrepareStatement(logPrefix, c, hadesRepoDesc, sqlExecTimeout, sql);
     }
 
-    PreparedStatement prepareStmt(String logPrefix, Connection c, String sql, String dsName)
+    public PreparedStatement prepareStmt(String logPrefix, Connection c, String sql, String dsName)
             throws SqlExecTimeoutSettingException, PrepareStmtException {
         return Utils.safelyPrepareStatement(logPrefix, c, dsName, sqlExecTimeout, sql);
     }
@@ -358,7 +358,7 @@ public class RepoJdbcImpl implements Repo {
         ResultColumn.ts.bind(ps, new Timestamp(new Date().getTime()));
     }
 
-    void close(String logPrefix, ResultSet rs, PreparedStatement ps, Connection c) {
+    public void close(String logPrefix, ResultSet rs, PreparedStatement ps, Connection c) {
         if (rs != null) {
             try {
                 rs.close();

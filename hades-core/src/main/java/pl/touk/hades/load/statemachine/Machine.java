@@ -77,6 +77,8 @@ public class Machine {
         failoverDbStates.add(new MachineState(true, high, true));
         failoverDbStates.add(new MachineState(true, medium, low));
         failoverDbStates.add(new MachineState(true, medium));
+        failoverDbStates.add(new MachineState(true, medium, true));
+        failoverDbStates.add(new MachineState(true, medium, false));
         // All possible transitions between above states keep failover active:
         Machine.appendAllPossibleTransitionsBetweenStates(failoverDbStates, transitions);
 
@@ -186,7 +188,7 @@ public class Machine {
             if (load.canBeGeneralized()) {
                 return tryTransitionForMoreGeneralHadesLoad(fromState, load, possibleTransitions);
             } else {
-                throw new IllegalStateException("transition from " + fromState + " through " + load + " not found");
+                throw new IllegalArgumentException("transition from " + fromState + " for " + load + " not found");
             }
         }
     }

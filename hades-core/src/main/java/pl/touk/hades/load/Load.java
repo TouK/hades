@@ -33,10 +33,6 @@ public class Load implements Serializable {
     private final LoadLevel mainDb;
     private final LoadLevel failoverDb;
 
-    // If <mainDb, failoverDb> = <low, low> then it is unimportant whether mainDb is higher than failoverDb or not - in
-    // neither case is the failover active. But if for example <mainDb, failoverDb> = <high, high> then we need
-    // more information to decide whether failover is active or not: we need to know whether mainDb load level is higher
-    // than the failoverDb load level and this information can be provided by the following field:
     private final Boolean mainDbLoadHigher;
 
     private Load(LoadLevel mainDb, LoadLevel failoverDb, Boolean mainDbLoadHigher) {
@@ -45,6 +41,13 @@ public class Load implements Serializable {
         }
         if (failoverDb == null) {
             throw new IllegalArgumentException("null failoverDb");
+        }
+        if (mainDb == LoadLevel.notMeasuredYet || failoverDb == LoadLevel.notMeasuredYet) {
+            if (mainDb != failoverDb) {
+                throw new IllegalArgumentException("load with only one load level being notMeasuredYet is illegal");
+            } else if (mainDbLoadHigher != null) {
+                throw new IllegalArgumentException("new Load(notMeasuredYet, true/false) is illegal");
+            }
         }
         this.mainDb = mainDb;
         this.failoverDb = failoverDb;

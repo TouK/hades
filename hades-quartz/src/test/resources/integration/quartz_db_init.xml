@@ -10,7 +10,7 @@
     <import resource="quartz_db.xml"/>
 
     <jdbc:initialize-database data-source="quartzDs">
-        <jdbc:script location="classpath:integration/quartzAndHadesTables.sql"/>
+        <jdbc:script location="classpath:integration/hadesAndQuartz186Tables.sql"/>
     </jdbc:initialize-database>
 
 </beans>

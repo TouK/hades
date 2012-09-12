@@ -19,6 +19,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pl.touk.hades.Utils;
 import pl.touk.hades.load.Load;
+import static pl.touk.hades.load.LoadLevel.*;
+
 import pl.touk.hades.load.LoadLevel;
 import pl.touk.hades.load.statemachine.MachineState;
 import pl.touk.hades.load.statemachine.Machine;
@@ -29,7 +31,7 @@ import java.util.Arrays;
 /**
  * @author <a href="mailto:msk@touk.pl">Michał Sokołowski</a>
  */
-public class State implements Serializable, Cloneable {
+public final class State implements Serializable, Cloneable {
 
     private final static Logger logger = LoggerFactory.getLogger(State.class);
 
@@ -233,8 +235,8 @@ public class State implements Serializable, Cloneable {
                 ", history=" + history +
                 ", historyFailover=" + historyFailover +
                 ", machineState=" + machineState +
-                ", period=" + period +
-                ", cycleModuloPeriod=" + cycleModuloPeriod +
+                ", period=" + Arrays.toString(period) +
+                ", cycleModuloPeriod=" + Arrays.toString(cycleModuloPeriod) +
                 ", currentToUnusedRatio=" + currentToUnusedRatio +
                 ", backOffMultiplier=" + backOffMultiplier +
                 ", backOffMaxRatio=" + backOffMaxRatio +
@@ -246,130 +248,199 @@ public class State implements Serializable, Cloneable {
                                                  long mainDbStmtExecTimeNanos,
                                                  long failoverDbStmtExecTimeNanos,
                                                  String host) {
-        if (!isLocalState()) {
-            throw new IllegalStateException("this state must be a local one");
-        }
+        long time;
+        Average newAvg;
+        Average newAvgFailover;
+        SqlTimeHistory oldHistory = history.clone();
+        SqlTimeHistory oldHistoryFailover = historyFailover.clone();
+        MachineState newMachineState;
+        int[] mainCycleAndPeriod;
+        int[] failoverCycleAndPeriod;
 
-        this.modifyTimeMillis = System.currentTimeMillis();
+        try {
+            time = System.currentTimeMillis();
 
-        if (mainDbStmtExecTimeNanos != notMeasuredInThisCycle) {
-            Utils.assertNonNegative(mainDbStmtExecTimeNanos, "mainDbStmtExecTimeNanos");
-            Utils.assertSame(0, cycleModuloPeriod[mainIndex], "main db load was measured though its cycleModuloPeriod != 0");
-            this.avg = history.updateAverage(mainDbStmtExecTimeNanos);
-        } else {
-            Utils.assertNonZero(cycleModuloPeriod[mainIndex], "cycleModuloPeriod for main db");
-        }
-        if (failoverDbStmtExecTimeNanos != notMeasuredInThisCycle) {
-            Utils.assertNonNegative(failoverDbStmtExecTimeNanos, "failoverDbStmtExecTimeNanos");
-            if (!sqlTimeIsMeasuredInThisCycle(true)) {
-                if (failoverDbStmtExecTimeNanos != ExceptionEnum.connException.value()
-                        && failoverDbStmtExecTimeNanos != ExceptionEnum.connTimeout.value()
-                        && failoverDbStmtExecTimeNanos != ExceptionEnum.unexpectedException.value()) {
-                    throw new IllegalArgumentException("failover db load should not be measured in this cycle so "
-                            + "failoverDbStmtExecTimeNanos should be one of " + notMeasuredInThisCycle
-                            + " (notMeasuredInThisCycle), " + ExceptionEnum.connException + ", "
-                            + ExceptionEnum.connTimeout + " or " + ExceptionEnum.unexpectedException);
-                }
+            if (!isLocalState()) {
+                throw new IllegalStateException("this.updateLocalStateWithNewExecTimes method can be " +
+                        "invoked only when this.isLocalState() is true but this is not the case: this=" + this);
             }
-            Utils.assertSame(0, cycleModuloPeriod[failoverIndex], "failover db load was measured even though its cycleModuloPeriod != 0");
-            this.avgFailover = historyFailover.updateAverage(failoverDbStmtExecTimeNanos);
-        } else {
-            Utils.assertNonZero(cycleModuloPeriod[failoverIndex], "cycleModuloPeriod for failover db");
+
+            newAvg = avg;
+            newAvgFailover = avgFailover;
+            if (validateSqlTime(false, mainDbStmtExecTimeNanos)) {
+                newAvg = history.updateAverage(mainDbStmtExecTimeNanos);
+            }
+            if (validateSqlTime(true, failoverDbStmtExecTimeNanos)) {
+                newAvgFailover = historyFailover.updateAverage(failoverDbStmtExecTimeNanos);
+            }
+
+            Load load = loadFactory.getLoad(newAvg.getValue(), newAvgFailover.getValue());
+            MachineState oldMachineState = machineState;
+            newMachineState = stateMachine.transition(oldMachineState, load);
+
+            mainCycleAndPeriod = getUpdatedCycleAndPeriod(
+                    logPrefix + mainDbName + ": ",
+                    mainDbStmtExecTimeNanos,
+                    oldMachineState,
+                    newMachineState,
+                    mainIndex);
+            failoverCycleAndPeriod = getUpdatedCycleAndPeriod(
+                    logPrefix + failoverDbName + ": ",
+                    failoverDbStmtExecTimeNanos,
+                    oldMachineState,
+                    newMachineState,
+                    failoverIndex);
+        } catch (RuntimeException e) {
+            history = oldHistory;
+            historyFailover = oldHistoryFailover;
+            return;
         }
 
-        this.load = loadFactory.getLoad(avg.getValue(), avgFailover.getValue());
-        MachineState oldMachineState = machineState;
-        this.machineState = stateMachine.transition(oldMachineState, this.load);
+        updateState(time, newAvg, newAvgFailover, load, newMachineState, mainCycleAndPeriod, failoverCycleAndPeriod, host);
+    }
+
+    private void updateState(long time,
+                             Average newAvg,
+                             Average newAvgFailover,
+                             Load load,
+                             MachineState newMachineState,
+                             int[] mainCycleAndPeriod,
+                             int[] failoverCycleAndPeriod,
+                             String host) {
+        this.modifyTimeMillis = time;
+        this.avg = newAvg;
+        this.avgFailover = newAvgFailover;
+        this.load = load;
+        this.machineState = newMachineState;
+        this.cycleModuloPeriod[mainIndex] = mainCycleAndPeriod[0];
+        this.period[mainIndex] = mainCycleAndPeriod[1];
+        this.cycleModuloPeriod[failoverIndex] = failoverCycleAndPeriod[0];
+        this.period[failoverIndex] = failoverCycleAndPeriod[1];
         this.host = host;
-
-        updateCycleAndPeriod(logPrefix + mainDbName + ": ", mainDbStmtExecTimeNanos, oldMachineState, mainIndex);
-        updateCycleAndPeriod(logPrefix + failoverDbName + ": ", failoverDbStmtExecTimeNanos, oldMachineState, failoverIndex);
     }
 
-    private void updateCycleAndPeriod(String logPrefix, long dbStmtExecTimeNanos, MachineState oldMachineState, int index) {
+    private boolean validateSqlTime(boolean failover, long sqlTimeNanos) {
+        if (sqlTimeNanos != notMeasuredInThisCycle) {
+            Utils.assertNonNegative(sqlTimeNanos, "sqlTimeNanos");
+            Utils.assertSame(0, cycleModuloPeriod(failover), "given sql time ("
+                    + ExceptionEnum.erroneousValuesAsStr(sqlTimeNanos) + ") indicates that the "
+                    + (failover ? "failover" : "main")
+                    + " db load was measured; this should not be the case as its cycleModuloPeriod != 0");
+            return true;
+        } else {
+            if (cycleModuloPeriod(failover) <= 0) {
+                throw new IllegalStateException("sql time was not measured in this cycle for "
+                        + (failover ? "failover" : "main")
+                        + " db; hence cycleModuloPeriod for this db should be greater than zero but it isn't: "
+                        + cycleModuloPeriod(failover));
+            }
+            return false;
+        }
+    }
+
+    private int cycleModuloPeriod(boolean failover) {
+        return cycleModuloPeriod[failover ? failoverIndex : mainIndex];
+    }
+
+    private int[] getUpdatedCycleAndPeriod(String logPrefix,
+                                           long dbStmtExecTimeNanos,
+                                           MachineState oldMachineState,
+                                           MachineState newMachineState,
+                                           int index) {
         if (dbStmtExecTimeNanos != notMeasuredInThisCycle) {
-            if (dbStillNotUsedAndWithoutProblems(index, oldMachineState, this.machineState)) {
-                keepDecreasedLoadOfUnusedDatabase(logPrefix, index);
-            } else if (dbWithProblems(index, this.machineState)) {
-                decreaseLoadOfDatabaseWithProblems(logPrefix, index);
-            } else if (dbNotUsedAndWithoutProblems(index, this.machineState)) {
-                decreaseLoadOfDatabaseThatBecameUnused(logPrefix, index);
+            if (dbStillNotUsedAndWithoutProblems(index, oldMachineState, newMachineState)) {
+                return keepDecreasedLoadOfUnusedDatabase(logPrefix, index);
+            } else if (dbWithProblems(index, newMachineState)) {
+                return decreaseLoadOfDatabaseWithProblems(logPrefix, index);
+            } else if (dbNotUsed(index, newMachineState)) {
+                assertDbWithoutProblems(index, newMachineState);
+                return decreaseLoadOfDatabaseThatBecameUnused(logPrefix, index);
             } else {
-                keepNormalLoadOfUsedDatabase(logPrefix, index);
+                assertDbWithoutProblems(index, newMachineState);
+                return keepNormalLoadOfUsedDatabase(logPrefix, index);
             }
         } else {
-            cycleModuloPeriod[index] = increaseCycle(cycleModuloPeriod[index], period[index]);
+            return getArrayWithIncreasedCycleModuloPeriodAndGivenPeriod(cycleModuloPeriod[index], period[index]);
         }
     }
 
-    private void keepDecreasedLoadOfUnusedDatabase(String logPrefix, int index) {
-        this.cycleModuloPeriod[index] = increaseCycle(cycleModuloPeriod[index], period[index]);
+    private void assertDbWithoutProblems(int index, MachineState newMachineState) {
+        if (newMachineState.getLoad().getLoadLevel(index == failoverIndex) != low
+                && newMachineState.getLoad().getLoadLevel(index == failoverIndex) != medium) {
+            throw new IllegalStateException((index == failoverIndex ? "failover" : "main")
+                    + " db should not have problems");
+        }
+    }
+
+    private int[] keepDecreasedLoadOfUnusedDatabase(String logPrefix, int index) {
+        if (period[index] != currentToUnusedRatio) {
+            throw new IllegalStateException("cycle[" + index + "] != currentToUnusedRatio (" + currentToUnusedRatio + ")");
+        }
         logger.info(logPrefix + "db still unused: period=currentToUnusedRatio=" + currentToUnusedRatio);
+        return getArrayWithIncreasedCycleModuloPeriodAndGivenPeriod(cycleModuloPeriod[index], currentToUnusedRatio);
     }
 
-    private void decreaseLoadOfDatabaseWithProblems(String logPrefix, int index) {
+    private int[] decreaseLoadOfDatabaseWithProblems(String logPrefix, int index) {
         int oldPeriod = this.period[index];
-        period[index] = oldPeriod * backOffMultiplier;
-        if (period[index] > backOffMaxRatio) {
-            period[index] = backOffMaxRatio;
+        int newPeriod = oldPeriod * backOffMultiplier;
+        if (newPeriod > backOffMaxRatio) {
+            newPeriod = backOffMaxRatio;
         }
-        cycleModuloPeriod[index] = increaseCycle(cycleModuloPeriod[index], period[index]);
-        logger.info(logPrefix + "load level at least high: increasing period to decrease load: old period=" + oldPeriod + ", new period=" + cycleModuloPeriod[index]);
+        logger.info(logPrefix + "load level at least high: increasing period to decrease load: old period=" + oldPeriod + ", new period=" + newPeriod);
+        return getArrayWithIncreasedCycleModuloPeriodAndGivenPeriod(cycleModuloPeriod[index], newPeriod);
     }
 
-    private void decreaseLoadOfDatabaseThatBecameUnused(String logPrefix, int index) {
+    private int[] decreaseLoadOfDatabaseThatBecameUnused(String logPrefix, int index) {
         int oldPeriod = this.period[index];
-        this.period[index] = currentToUnusedRatio;
-        this.cycleModuloPeriod[index] = increaseCycle(0, this.period[index]);
+        int oldCycle = cycleModuloPeriod[index];
+        if (oldPeriod != 1 || oldCycle != 0) {
+            throw new IllegalStateException("decreaseLoadOfDatabaseThatBecameUnused method used but period[" + index
+                    + "] != 1 (" + oldPeriod + ") or cycleModuloPeriod[" + index + "] != 0 (" + oldCycle + ")");
+        }
         logger.info(logPrefix + "db became unused: old period=" + oldPeriod + ", new period=currentToUnusedRatio=" + currentToUnusedRatio);
+        return getArrayWithIncreasedCycleModuloPeriodAndGivenPeriod(0, currentToUnusedRatio);
     }
 
-    private void keepNormalLoadOfUsedDatabase(String logPrefix, int index) {
-        int oldPeriod = this.period[index];
-        this.cycleModuloPeriod[index] = 0;
-        this.period[index] = 1;
-        if (oldPeriod > 1) {
-            logger.info(logPrefix + "back to period=1 (old period=" + oldPeriod + ")");
+    private int[] keepNormalLoadOfUsedDatabase(String logPrefix, int index) {
+        if (this.period[index] > 1) {
+            logger.info(logPrefix + "back to period=1 (old period=" + this.period[index]
+                    + ") for " + (index == failoverIndex ? "failover" : "main") + " db");
         }
+        return new int[]{0, 1};
     }
 
-    private int increaseCycle(int cycleModuloPeriod, int period) {
+    private int[] getArrayWithIncreasedCycleModuloPeriodAndGivenPeriod(int cycleModuloPeriod, int period) {
         cycleModuloPeriod++;
         if (cycleModuloPeriod < period) {
-            return cycleModuloPeriod;
+            return new int[]{cycleModuloPeriod, period};
         } else {
-            return 0;
+            return new int[]{0, period};
         }
     }
 
     private boolean dbStillNotUsedAndWithoutProblems(int index, MachineState oldMachineState, MachineState newMachineState) {
         if (index == failoverIndex) {
             return !oldMachineState.isFailoverActive() && !newMachineState.isFailoverActive()
-                   && (oldMachineState.getLoad().getFailoverDb() == LoadLevel.low || oldMachineState.getLoad().getFailoverDb() == LoadLevel.medium)
-                   && (newMachineState.getLoad().getFailoverDb() == LoadLevel.low || newMachineState.getLoad().getFailoverDb() == LoadLevel.medium);
+                   && (oldMachineState.getLoad().getFailoverDb() == low || oldMachineState.getLoad().getFailoverDb() == medium)
+                   && (newMachineState.getLoad().getFailoverDb() == low || newMachineState.getLoad().getFailoverDb() == medium);
         } else {
             return oldMachineState.isFailoverActive() && newMachineState.isFailoverActive()
-                   && (oldMachineState.getLoad().getMainDb() == LoadLevel.low || oldMachineState.getLoad().getMainDb() == LoadLevel.medium)
-                   && (newMachineState.getLoad().getMainDb() == LoadLevel.low || newMachineState.getLoad().getMainDb() == LoadLevel.medium);
+                   && (oldMachineState.getLoad().getMainDb() == low || oldMachineState.getLoad().getMainDb() == medium)
+                   && (newMachineState.getLoad().getMainDb() == low || newMachineState.getLoad().getMainDb() == medium);
         }
     }
 
-    private boolean dbNotUsedAndWithoutProblems(int index, MachineState newMachineState) {
+    private boolean dbNotUsed(int index, MachineState newMachineState) {
         if (index == failoverIndex) {
-            return !newMachineState.isFailoverActive() && (newMachineState.getLoad().getFailoverDb() == LoadLevel.low || newMachineState.getLoad().getFailoverDb() == LoadLevel.medium);
+            return !newMachineState.isFailoverActive() && (newMachineState.getLoad().getFailoverDb() == low || newMachineState.getLoad().getFailoverDb() == medium);
         } else {
-            return newMachineState.isFailoverActive() && (newMachineState.getLoad().getMainDb() == LoadLevel.low || newMachineState.getLoad().getMainDb() == LoadLevel.medium);
+            return newMachineState.isFailoverActive() && (newMachineState.getLoad().getMainDb() == low || newMachineState.getLoad().getMainDb() == medium);
         }
     }
 
     private boolean dbWithProblems(int index, MachineState newMachineState) {
-        LoadLevel l;
-        if (index == failoverIndex) {
-            l = newMachineState.getLoad().getFailoverDb();
-        } else {
-            l = newMachineState.getLoad().getMainDb();
-        }
-        return l == LoadLevel.high || l == LoadLevel.exceptionWhileMeasuring;
+        LoadLevel l = newMachineState.getLoad().getLoadLevel(index == failoverIndex);
+        return l == high || l == exceptionWhileMeasuring;
     }
 
     public void copyFrom(String logPrefixIfLocalState, State localOrRemote) {
@@ -404,8 +475,8 @@ public class State implements Serializable, Cloneable {
     }
 
     private void checkConfigsIdentical(String logPrefix, State fullState) {
-        if (loadFactory.getSqlTimeTriggeringFailoverNanos() != fullState.loadFactory.getSqlTimeTriggeringFailoverNanos()
-                || loadFactory.getSqlTimeTriggeringFailbackNanos() != fullState.loadFactory.getSqlTimeTriggeringFailbackNanos()
+        if (loadFactory.getFailoverThresholdNanos() != fullState.loadFactory.getFailoverThresholdNanos()
+                || loadFactory.getFailbackThresholdNanos() != fullState.loadFactory.getFailbackThresholdNanos()
                 || currentToUnusedRatio != fullState.currentToUnusedRatio
                 || backOffMultiplier != fullState.backOffMultiplier
                 || backOffMaxRatio != fullState.backOffMaxRatio) {

@@ -37,7 +37,7 @@ import java.io.Serializable;
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
-class SqlTimeHistory implements Serializable, Cloneable {
+final class SqlTimeHistory implements Serializable, Cloneable {
 
     private static final long serialVersionUID = 1059567443788079262L;
 
@@ -85,7 +85,7 @@ class SqlTimeHistory implements Serializable, Cloneable {
 
     /**
      * Adds the given execution time to the history. If maximal history size is exceeded, removes the
-     * last (oldest) executin time from it. Returns the new, updated {@link Average}. If the specified execution time
+     * last (oldest) execution time from it. Returns the new, updated {@link Average}. If the specified execution time
      * is <i>infinity</i> then the returned average is also infinity, i.e. an average constructed like this:
      * <p>
      * <code>new {@link Average#Average(long, int, long) Average(Long.MAX_VALUE, &lt;current history size&gt;, Long.MAX_VALUE)}</code>).

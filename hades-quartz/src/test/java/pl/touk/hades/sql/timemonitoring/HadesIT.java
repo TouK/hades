@@ -90,10 +90,7 @@ public class HadesIT {
                     case startMonitors:
                         ctx.getBean("monitorAlfa");
                         ctx.getBean("monitorBeta");
-                        logger.debug("foo1");
-//                        Thread.sleep(10000);
                         ctx.getBean("scheduler", Scheduler.class).start();
-                        logger.debug("foo2");
                         runQuartzSchedulerForGivenTime(ctx, Integer.parseInt(cmd.getArg(0)), java.lang.Boolean.parseBoolean(cmd.getArg(1)));
                         master.sendResultToMaster(cmd.succeed());
                         break;
@@ -143,12 +140,6 @@ public class HadesIT {
         } finally {
             logger.info(slaveName + " is exiting...");
             try {
-//                if (ctx != null) {
-//                    ctx.stop();
-//                    logger.info(slaveName + " stopped context");
-//                    ctx.destroy();
-//                    logger.info(slaveName + " destroyed context");
-//                }
                 master.stop();
                 logger.info(slaveName + " closed sockets");
             } catch (Exception e) {

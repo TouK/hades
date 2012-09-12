@@ -64,8 +64,11 @@ public class MachineStateTest {
         states1.add(new MachineState(true, LoadLevel.low, true));
         states2.add(new MachineState(true, LoadLevel.low, false));
 
-        states1.add(new MachineState(true, LoadLevel.notMeasuredYet, true));
+        states1.add(new MachineState(true, LoadLevel.notMeasuredYet));
         states2.add(new MachineState(true, LoadLevel.exceptionWhileMeasuring, true));
+
+        states1.add(new MachineState(true, LoadLevel.low, true));
+        states2.add(new MachineState(true, LoadLevel.medium, true));
 
         states1.add(new MachineState(true, LoadLevel.low, true));
         states2.add(new MachineState(true, LoadLevel.medium, true));

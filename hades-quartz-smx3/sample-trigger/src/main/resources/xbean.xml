@@ -1,0 +1,25 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:qrtz="http://playmobile.pl/service/quartz"
+       xmlns:sql="http://playmobile.pl/service/sql"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="
+            http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+       "
+        >
+
+    <bean name="quartzEndpoint" class="org.apache.servicemix.quartz.QuartzEndpoint">
+        <property name="service" value="qrtz:triggers"/>
+        <property name="endpoint" value="default"/>
+        <property name="targetService" value="sql:sample"/>
+        <property name="targetEndpoint" value="default"/>
+        <property name="trigger" ref="triggerForSampleSql"/>
+    </bean>
+
+    <bean id="triggerForSampleSql" class="org.springframework.scheduling.quartz.CronTriggerBean">
+        <property name="jobName" value="sampleSqlJobName"/>
+        <property name="jobGroup" value="sampleSqlJobGroup"/>
+        <property name="cronExpression" value="0/20 * * * * ?"/>
+        <property name="name" value="sampleSqlName"/>
+        <property name="group" value="sampleSqlGroup"/>
+    </bean>
+</beans>
