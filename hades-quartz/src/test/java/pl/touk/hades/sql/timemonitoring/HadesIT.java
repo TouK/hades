@@ -195,13 +195,13 @@ public class HadesIT {
 
         host2.prepareOneShotCronsForMonitors(
                 "cronAlfa", Integer.toString(unreachableTimeInFuture()),
-                "cronBeta", "3");
-        host2.startMonitors(4, false);
+                "cronBeta", "10");
+        host2.startMonitors(11, false);
 
         host1.prepareOneShotCronsForMonitors(
                 "cronBeta", Integer.toString(unreachableTimeInFuture()),
-                "cronAlfa", "3");
-        host1.startMonitors(4, false);
+                "cronAlfa", "10");
+        host1.startMonitors(11, false);
 
         // then:
         lastQueryTimeMillis = host1.getLastQueryTimeMillis(false, "monitorAlfa");
@@ -228,13 +228,13 @@ public class HadesIT {
 
         host1.prepareOneShotCronsForMonitors(
                 "cronBeta", Long.toString(unreachableTimeInFuture()),
-                "cronAlfa", "3");
-        host1.startMonitors(4, false);
+                "cronAlfa", "10");
+        host1.startMonitors(11, false);
 
         host2.prepareOneShotCronsForMonitors(
                 "cronAlfa", Long.toString(unreachableTimeInFuture()),
-                "cronBeta", "3");
-        host2.startMonitors(4, false);
+                "cronBeta", "10");
+        host2.startMonitors(11, false);
 
         // then:
         lastQueryTimeMillis = host2.getLastQueryTimeMillis(false, "monitorBeta");

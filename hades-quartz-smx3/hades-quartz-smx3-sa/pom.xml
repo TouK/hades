@@ -10,7 +10,7 @@
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>pl.touk.hades</groupId>
-    <artifactId>hades-quartz-smx-sa</artifactId>
+    <artifactId>hades-quartz-smx3-sa</artifactId>
     <packaging>jbi-service-assembly</packaging>
 
     <dependencies>

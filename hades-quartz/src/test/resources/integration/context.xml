@@ -55,7 +55,7 @@
     <bean id="hadesBetaFailoverDs" factory-bean="hadesBeta" factory-method="getFailoverDsName"/>
 
     <bean id="repo" class="pl.touk.hades.sql.timemonitoring.QuartzRepoJdbcImpl">
-        <constructor-arg name="borrowExistingMatchingResultIfYoungerThanMillis" value="10000"/>
+        <constructor-arg name="borrowExistingMatchingResultIfYoungerThanMillis" value="20000"/>
         <constructor-arg name="dataSource"                                      ref="quartzDs"/>
         <constructor-arg name="connTimeoutMillis"                               value="1000"/>
         <constructor-arg name="sqlExecTimeout"                                  value="1"/>

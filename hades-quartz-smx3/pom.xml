@@ -4,15 +4,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>pl.touk.esb</groupId>
-        <artifactId>common-service-pom</artifactId>
-        <version>1.0.7</version>
+        <groupId>pl.touk.hades</groupId>
+        <artifactId>hades</artifactId>
+        <version>2.0.2-SNAPSHOT</version>
     </parent>
-    <!--<parent>-->
-        <!--<groupId>pl.touk.hades</groupId>-->
-        <!--<artifactId>hades</artifactId>-->
-        <!--<version>2.0.2-SNAPSHOT</version>-->
-    <!--</parent>-->
 
     <groupId>pl.touk.hades</groupId>
     <artifactId>hades-quartz-smx3-parent</artifactId>
@@ -24,8 +19,8 @@
     </properties>
 
     <modules>
-        <module>hades-quartz-smx</module>
-        <module>hades-quartz-smx-sa</module>
+        <module>hades-quartz-smx3</module>
+        <module>hades-quartz-smx3-sa</module>
         <module>sample-sql</module>
         <module>sample-trigger</module>
         <module>sample-sa</module>
