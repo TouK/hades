@@ -26,26 +26,32 @@ limitations under the License.
     <groupId>pl.touk.hades</groupId>
     <artifactId>hades-core</artifactId>
     <packaging>jar</packaging>
-    <url>http://touk.github.com/hades/</url>
     <name>Hades Core</name>
-    <description>Core classes of Hades project.</description>
+    <description>
+        A java project containing Core classes of Hades. The most important are: Hades - the HA (high availability)
+        data source, and SqlTimeBasedTimerTaskMonitor - a monitor (class measuring the load of data sources wrapped
+        by the hades) that is a java TimerTask and measures load based on execution time of some sql statement.
+        This project can be used if you want to setup a hades with load measuring scheduled by java Timer facility.
+    </description>
 
     <dependencies>
+
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>1.4.0</version>
         </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.8.1</version>
-            <scope>test</scope>
-        </dependency>
+
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
             <version>1.4.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.8.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -102,6 +108,7 @@ limitations under the License.
             <version>10.2.0.4.0</version>
             <scope>test</scope>
         </dependency>
+
     </dependencies>
 
 </project>

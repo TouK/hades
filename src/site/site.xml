@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<project name="Hades Core">
+    <bannerLeft>
+        <name>Hades Parent</name>
+        <src>http://maven.apache.org/images/apache-maven-project.png</src>
+        <href>http://maven.apache.org/</href>
+    </bannerLeft>
+    <bannerRight>
+        <src>http://maven.apache.org/images/maven-small.gif</src>
+    </bannerRight>
+    <body>
+        <menu ref="reports" inherit="top"/>
+        <menu ref="parent"  inherit="top"/>
+        <menu ref="modules" inherit="top"/>
+    </body>
+</project>
