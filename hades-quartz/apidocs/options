@@ -1,5 +1,5 @@
 -classpath
-'/home/sokol/git/github/hades/target/checkout/hades-quartz/target/classes:/home/sokol/.m2/repository/org/quartz-scheduler/quartz-oracle/1.8.6/quartz-oracle-1.8.6.jar:/home/sokol/.m2/repository/org/quartz-scheduler/quartz/1.8.6/quartz-1.8.6.jar:/home/sokol/git/github/hades/target/checkout/hades-core/target/hades-core-2.0.5pre1.jar:/home/sokol/.m2/repository/org/slf4j/slf4j-api/1.4.0/slf4j-api-1.4.0.jar'
+'/home/sokol/git/github/hades/target/checkout/hades-quartz/target/classes:/home/sokol/.m2/repository/org/quartz-scheduler/quartz-oracle/1.8.6/quartz-oracle-1.8.6.jar:/home/sokol/.m2/repository/org/quartz-scheduler/quartz/1.8.6/quartz-1.8.6.jar:/home/sokol/git/github/hades/target/checkout/hades-core/target/hades-core-2.0.5.jar:/home/sokol/.m2/repository/org/slf4j/slf4j-api/1.4.0/slf4j-api-1.4.0.jar'
 -encoding
 'UTF-8'
 -protected
@@ -15,7 +15,7 @@
 -docencoding
 'UTF-8'
 -doctitle
-'Hades Quartz 2.0.5pre1 API'
+'Hades Quartz 2.0.5 API'
 -linkoffline
 'http://download.oracle.com/javase/1.5.0/docs/api' '/home/sokol/git/github/hades/target/checkout/hades-quartz/target/javadoc-bundle-options'
 -linkoffline
@@ -23,4 +23,4 @@
 -use
 -version
 -windowtitle
-'Hades Quartz 2.0.5pre1 API'
+'Hades Quartz 2.0.5 API'
