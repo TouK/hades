@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<services xmlns="http://java.sun.com/xml/ns/jbi" version="1.0" binding-component="false" xmlns:hades="http://playmobile.pl/service/hades">
-     <provides service-name="hades:jobs" endpoint-name="default"/>
-</services>
-

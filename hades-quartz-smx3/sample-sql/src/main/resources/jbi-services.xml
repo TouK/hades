@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<services xmlns="http://java.sun.com/xml/ns/jbi" version="1.0" binding-component="false" xmlns:sql="http://playmobile.pl/service/sql">
-     <provides service-name="sql:sample" endpoint-name="default"/>
-</services>
-
