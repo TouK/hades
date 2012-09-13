@@ -31,35 +31,16 @@
             <plugin>
                 <groupId>org.apache.servicemix.tooling</groupId>
                 <artifactId>jbi-maven-plugin</artifactId>
-                <version>4.1.touk.3</version>
+                <!--<version>4.1.touk.3</version>-->
+                <version>4.5</version>
                 <extensions>true</extensions>
                 <configuration>
-                    <serviceUnitAnalyzerArtifact>pl.touk.jbi:jbiPluginExtension:0.0.4</serviceUnitAnalyzerArtifact>
+                    <!--<serviceUnitAnalyzerArtifact>pl.touk.jbi:jbiPluginExtension:0.0.4</serviceUnitAnalyzerArtifact>-->
                     <serviceUnitArtifactsDir>${basedir}/target/classes</serviceUnitArtifactsDir>
                     <jbiServicesFile>${basedir}/target/classes/jbi-services.xml</jbiServicesFile>
                 </configuration>
             </plugin>
-            <plugin>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>2.0.2</version>
-                <configuration>
-                    <source>1.5</source>
-                    <target>1.5</target>
-                    <encoding>UTF-8</encoding>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-release-plugin</artifactId>
-                <version>2.0</version>
-                <configuration>
-                    <autoVersionSubmodules>true</autoVersionSubmodules>
-                    <preparationGoals>clean install</preparationGoals>
-                </configuration>
-            </plugin>
-
         </plugins>
     </build>
-
 
 </project>
