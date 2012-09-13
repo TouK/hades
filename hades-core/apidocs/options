@@ -15,10 +15,10 @@
 -docencoding
 'UTF-8'
 -doctitle
-'Hades Core 2.0.5pre1 API'
+'Hades Core 2.0.5 API'
 -linkoffline
 'http://download.oracle.com/javase/1.5.0/docs/api' '/home/sokol/git/github/hades/target/checkout/hades-core/target/javadoc-bundle-options'
 -use
 -version
 -windowtitle
-'Hades Core 2.0.5pre1 API'
+'Hades Core 2.0.5 API'
