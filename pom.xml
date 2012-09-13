@@ -61,7 +61,6 @@ limitations under the License.
     <modules>
         <module>hades-core</module>
         <module>hades-quartz</module>
-        <module>hades-quartz-smx3</module>
     </modules>
 
     <build>
