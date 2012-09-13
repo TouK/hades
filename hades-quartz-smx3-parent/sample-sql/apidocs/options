@@ -1,0 +1,24 @@
+-classpath
+'/home/sokol/git/github/hades/target/checkout/hades-quartz-smx3/sample-sql/target/classes:/home/sokol/.m2/repository/org/springframework/spring-aop/3.0.3.RELEASE/spring-aop-3.0.3.RELEASE.jar:/home/sokol/.m2/repository/commons-logging/commons-logging-api/1.1/commons-logging-api-1.1.jar:/usr/lib/jvm/java-6-sun-1.6.0.24/jre/../lib/tools.jar:/home/sokol/.m2/repository/org/springframework/spring-context/3.0.3.RELEASE/spring-context-3.0.3.RELEASE.jar:/home/sokol/.m2/repository/org/apache/camel/camel-core/2.4.0/camel-core-2.4.0.jar:/home/sokol/.m2/repository/net/sf/saxon/saxon/9.x/saxon-9.x.jar:/home/sokol/.m2/repository/org/slf4j/slf4j-api/1.5.5/slf4j-api-1.5.5.jar:/home/sokol/.m2/repository/org/fusesource/commonman/commons-management/1.0/commons-management-1.0.jar:/home/sokol/.m2/repository/org/apache/camel/camel-spring/2.4.0/camel-spring-2.4.0.jar:/home/sokol/.m2/repository/org/springframework/spring-tx/3.0.3.RELEASE/spring-tx-3.0.3.RELEASE.jar:/home/sokol/.m2/repository/org/apache/camel/camel-jdbc/2.4.0/camel-jdbc-2.4.0.jar'
+-encoding
+'UTF-8'
+-protected
+-sourcepath
+'/home/sokol/git/github/hades/target/checkout/hades-quartz-smx3/sample-sql/src/main/java'
+-author
+-bottom
+'Copyright &#169; 2012. All Rights Reserved.'
+-charset
+'UTF-8'
+-d
+'/home/sokol/git/github/hades/target/checkout/hades-quartz-smx3/sample-sql/target/site/apidocs'
+-docencoding
+'UTF-8'
+-doctitle
+'sample-sql 2.0.5pre1 API'
+-linkoffline
+'http://download.oracle.com/javase/1.5.0/docs/api' '/home/sokol/git/github/hades/target/checkout/hades-quartz-smx3/sample-sql/target/javadoc-bundle-options'
+-use
+-version
+-windowtitle
+'sample-sql 2.0.5pre1 API'
