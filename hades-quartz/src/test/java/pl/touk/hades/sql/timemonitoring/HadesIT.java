@@ -187,11 +187,11 @@ public class HadesIT {
         host2.startSpring();
 
         host1.configureDsQueryTimesMillis(
-                "DHLITE", Long.toString(unimportantQueryTimeMillis()),
-                "DH", Long.toString(throwExceptionIfQueried()));
+                "dhlite", Long.toString(unimportantQueryTimeMillis()),
+                "dh", Long.toString(throwExceptionIfQueried()));
         host2.configureDsQueryTimesMillis(
-                "DH", Long.toString(queryTimeMillis),
-                "NASA", Long.toString(unimportantQueryTimeMillis()));
+                "dh", Long.toString(queryTimeMillis),
+                "nasa", Long.toString(unimportantQueryTimeMillis()));
 
         host2.prepareOneShotCronsForMonitors(
                 "cronAlfa", Integer.toString(unreachableTimeInFuture()),
@@ -220,11 +220,11 @@ public class HadesIT {
         host2.startSpring();
 
         host1.configureDsQueryTimesMillis(
-                "DH", Long.toString(queryTimeMillis),
-                "DHLITE", Long.toString(unimportantQueryTimeMillis()));
+                "dh", Long.toString(queryTimeMillis),
+                "dhlite", Long.toString(unimportantQueryTimeMillis()));
         host2.configureDsQueryTimesMillis(
-                "NASA", Long.toString(unimportantQueryTimeMillis()),
-                "DH", Long.toString(throwExceptionIfQueried()));
+                "nasa", Long.toString(unimportantQueryTimeMillis()),
+                "dh", Long.toString(throwExceptionIfQueried()));
 
         host1.prepareOneShotCronsForMonitors(
                 "cronBeta", Long.toString(unreachableTimeInFuture()),
@@ -252,8 +252,8 @@ public class HadesIT {
         host1.preparePeriodicCronForMonitor("cronAlfa", 2);
         host1.prepareOneShotCronForMonitor("cronBeta", unreachableTimeInFuture());
         host1.configureDsQueryTimesMillis(
-                "DHLITE", Long.toString(unimportantQueryTimeMillis()),
-                "DH", Long.toString(queryTimeMillis));
+                "dhlite", Long.toString(unimportantQueryTimeMillis()),
+                "dh", Long.toString(queryTimeMillis));
         host1.startMonitors(5, false);
 
         // then:
@@ -271,13 +271,13 @@ public class HadesIT {
         host2.prepareOneShotCronForMonitor("cronBeta", unreachableTimeInFuture());
 
         host1.configureDsQueryTimesMillis(
-                "DHLITE", "1",
-                "DH", "3",
-                "NASA", Long.toString(throwExceptionIfQueried()));
+                "dhlite", "1",
+                "dh", "3",
+                "nasa", Long.toString(throwExceptionIfQueried()));
         host2.configureDsQueryTimesMillis(
-                "DHLITE", "5",
-                "DH", "7",
-                "NASA", Long.toString(throwExceptionIfQueried()));
+                "dhlite", "5",
+                "dh", "7",
+                "nasa", Long.toString(throwExceptionIfQueried()));
 
         host1.startMonitors(15, true);
         host2.startMonitors(25, false);

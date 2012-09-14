@@ -25,7 +25,13 @@ public class SqlTimeQuartzCalculatorImpl implements SqlTimeQuartzCalculator {
     private final Hades hades;
     private final Repo repo;
 
-    public SqlTimeQuartzCalculatorImpl(Hades hades, int connTimeoutMillis, ExecutorService externalExecutor, QuartzRepo repo, String sql, int sqlExecTimeout, int sqlExecTimeoutForcingPeriodMillis) {
+    public SqlTimeQuartzCalculatorImpl(Hades hades,
+                                       int connTimeoutMillis,
+                                       ExecutorService externalExecutor,
+                                       QuartzRepo repo,
+                                       String sql,
+                                       int sqlExecTimeout,
+                                       int sqlExecTimeoutForcingPeriodMillis) {
         Utils.assertNotNull(hades, "hades");
         Utils.assertNotNull(repo, "repo");
 

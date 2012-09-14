@@ -43,8 +43,8 @@ public class SqlTimeBasedLoadFactory implements Serializable {
 
     private static final long serialVersionUID = 1278912990679817475L;
 
-    private final long failbackThresholdNanos;
     private final long failoverThresholdNanos;
+    private final long failbackThresholdNanos;
 
     /**
      * Constructs a factory with the given higher and lower limits.
@@ -124,5 +124,13 @@ public class SqlTimeBasedLoadFactory implements Serializable {
 
     public long getFailoverThresholdNanos() {
         return failoverThresholdNanos;
+    }
+
+    @Override
+    public String toString() {
+        return "SqlTimeBasedLoadFactory{" +
+                "failoverThresholdNanos=" + failoverThresholdNanos +
+                ", failbackThresholdNanos=" + failbackThresholdNanos +
+                '}';
     }
 }

@@ -9,31 +9,30 @@
 
     <import resource="quartz_db.xml"/>
 
-    <bean id="DHLITE" class="org.mockito.Mockito" factory-method="mock">
+    <bean id="dhlite" class="org.mockito.Mockito" factory-method="mock">
         <constructor-arg value="javax.sql.DataSource"/>
     </bean>
 
-    <bean id="DH" class="org.mockito.Mockito" factory-method="mock">
+    <bean id="dh" class="org.mockito.Mockito" factory-method="mock">
         <constructor-arg value="javax.sql.DataSource"/>
     </bean>
 
-    <bean id="NASA" class="org.mockito.Mockito" factory-method="mock">
+    <bean id="nasa" class="org.mockito.Mockito" factory-method="mock">
         <constructor-arg value="javax.sql.DataSource"/>
     </bean>
 
-    <bean id="executor" class="java.util.concurrent.Executors" factory-method="newCachedThreadPool"/>
-    <!--destroy-method="shutdownNow"/>-->
+    <bean id="executor" class="java.util.concurrent.Executors" factory-method="newCachedThreadPool" destroy-method="shutdownNow"/>
 
     <bean id="hadesAlfa" class="pl.touk.hades.sql.timemonitoring.SqlTimeBasedHades">
-        <constructor-arg name="mainDataSource" ref="DHLITE"/>
-        <constructor-arg name="failoverDataSource" ref="DH"/>
+        <constructor-arg name="mainDataSource" ref="dhlite"/>
+        <constructor-arg name="failoverDataSource" ref="dh"/>
         <constructor-arg name="mainDsName" value="DHLITE"/>
         <constructor-arg name="failoverDsName" value="DH"/>
     </bean>
 
     <bean id="hadesBeta" class="pl.touk.hades.sql.timemonitoring.SqlTimeBasedHades">
-        <constructor-arg name="mainDataSource" ref="NASA"/>
-        <constructor-arg name="failoverDataSource" ref="DH"/>
+        <constructor-arg name="mainDataSource" ref="nasa"/>
+        <constructor-arg name="failoverDataSource" ref="dh"/>
         <constructor-arg name="mainDsName" value="NASA"/>
         <constructor-arg name="failoverDsName" value="DH"/>
     </bean>
@@ -47,12 +46,6 @@
     <bean id="scheduler" factory-bean="schedulerFactory" factory-method="getScheduler"/>
 
     <bean id="quartzCluster" factory-bean="scheduler" factory-method="getSchedulerName"/>
-
-    <bean id="hadesAlfaMainDs"     factory-bean="hadesAlfa" factory-method="getMainDsName"/>
-    <bean id="hadesAlfaFailoverDs" factory-bean="hadesAlfa" factory-method="getFailoverDsName"/>
-
-    <bean id="hadesBetaMainDs"     factory-bean="hadesBeta" factory-method="getMainDsName"/>
-    <bean id="hadesBetaFailoverDs" factory-bean="hadesBeta" factory-method="getFailoverDsName"/>
 
     <bean id="repo" class="pl.touk.hades.sql.timemonitoring.QuartzRepoJdbcImpl">
         <constructor-arg name="borrowExistingMatchingResultIfYoungerThanMillis" value="20000"/>

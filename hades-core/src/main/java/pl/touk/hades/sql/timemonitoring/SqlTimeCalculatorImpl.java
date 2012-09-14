@@ -113,10 +113,9 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
 
         String dsName = hades.getDsName(failover);
         Long time;
-        if (state.sqlTimeIsMeasuredInThisCycle(failover)) {
+        if (state.sqlTimeIsMeasuredInThisCycle(logPrefix, failover)) {
             time = repo.findSqlTimeYoungerThan(logPrefix, dsName, sql);
         } else {
-            logger.debug(logPrefix + "not measured in this cycle");
             return State.notMeasuredInThisCycle;
         }
 
