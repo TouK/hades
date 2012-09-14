@@ -540,7 +540,7 @@ public final class State implements Serializable, Cloneable {
         if (!isMeasured) {
             if (logPrefix != null) {
                 logger.debug(logPrefix + "not measured in this cycle (cycle=" + getCycleModuloPeriod(failover)
-                        + ", period=" + getPeriod(failover) + ", " + stateAfterLastMeasurement + ")");
+                        + ", period=" + getPeriod(failover) + ", " + getStateAfterLastMeasurement(failover) + ")");
             }
         }
         return isMeasured;
