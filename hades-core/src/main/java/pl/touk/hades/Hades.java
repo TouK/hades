@@ -125,9 +125,13 @@ public class Hades<M extends Monitor> implements DataSource, HadesMBean {
 
     public void init(M monitor) {
         Utils.assertNotNull(monitor, "monitor");
-        Utils.assertSame(monitor.getHades(), this, "monitor.hades != this; ensure that each association of a hades and a monitor is one-to-one");
-        if (!this.monitor.compareAndSet(null, monitor)) {
-            throw new IllegalStateException("hades already associated with a monitor");
+        Utils.assertSame(monitor.getHades(), this,
+                "monitor.hades != this; ensure that each association of a hades and a monitor is one-to-one");
+        if (this.monitor.compareAndSet(null, monitor)) {
+            logger.info("hades " + this + " for the first time associated with a monitor; new monitor: " + monitor);
+        } else {
+            M oldMonitor = this.monitor.getAndSet(monitor);
+            logger.info("hades " + this + " associated with monitor " + monitor + "; old monitor: " + oldMonitor);
         }
     }
 
