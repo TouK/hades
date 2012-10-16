@@ -48,13 +48,22 @@ public final class SqlTimeBasedTimerTaskMonitor extends TimerTask implements Sql
                                         SqlTimeCalculator sqlTimeCalculator,
                                         int currentToUnusedRatio,
                                         int backOffMultiplier,
-                                        int backOffMaxRatio)
+                                        int backOffMaxRatio,
+                                        String host)
             throws UnknownHostException {
 
-        monitor = new SqlTimeBasedMonitorImpl(hades, sqlTimeTriggeringFailoverMillis, sqlTimeTriggeringFailbackMillis,
-                sqlTimesIncludedInAverage, exceptionsIgnoredAfterRecovery,
-                recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery, sqlTimeCalculator,
-                currentToUnusedRatio, backOffMultiplier, backOffMaxRatio);
+        monitor = new SqlTimeBasedMonitorImpl(
+                hades,
+                sqlTimeTriggeringFailoverMillis,
+                sqlTimeTriggeringFailbackMillis,
+                sqlTimesIncludedInAverage,
+                exceptionsIgnoredAfterRecovery,
+                recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery,
+                sqlTimeCalculator,
+                currentToUnusedRatio,
+                backOffMultiplier,
+                backOffMaxRatio,
+                host);
     }
 
     public void init() {

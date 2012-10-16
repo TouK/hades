@@ -83,6 +83,10 @@
     <bean id="cronAlfa" class="pl.touk.hades.StringFactory" />
     <bean id="cronBeta" class="pl.touk.hades.StringFactory" />
 
+    <bean id="schedulerInstanceIdHumanReadable" class="java.lang.System" factory-method="getProperty">
+        <constructor-arg value="instance.name"/>
+    </bean>
+
     <bean id="monitorAlfa" class="pl.touk.hades.sql.timemonitoring.SqlTimeBasedQuartzMonitor" init-method="init" lazy-init="true">
         <constructor-arg name="hades"                                                   ref="hadesAlfa"/>
         <constructor-arg name="sqlTimeTriggeringFailoverMillis"                         value="600"/>
@@ -99,6 +103,7 @@
         <constructor-arg name="startDelayMillis"                                        value="0"/>
         <constructor-arg name="syncAttemptDelayMillis"                                  value="1000"/>
         <constructor-arg name="scheduler"                                               ref="scheduler"/>
+        <constructor-arg name="schedulerInstanceIdHumanReadable"                        ref="schedulerInstanceIdHumanReadable"/>
         <constructor-arg name="syncExecutor"                                            ref="executor"/>
         <constructor-arg name="monitoringMethodDurationHistorySize"                     value="5"/>
     </bean>
@@ -119,6 +124,7 @@
         <constructor-arg name="startDelayMillis"                                        value="0"/>
         <constructor-arg name="syncAttemptDelayMillis"                                  value="1000"/>
         <constructor-arg name="scheduler"                                               ref="scheduler"/>
+        <constructor-arg name="schedulerInstanceIdHumanReadable"                        ref="schedulerInstanceIdHumanReadable"/>
         <constructor-arg name="syncExecutor"                                            ref="executor"/>
         <constructor-arg name="monitoringMethodDurationHistorySize"                     value="5"/>
     </bean>

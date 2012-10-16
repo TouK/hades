@@ -238,8 +238,7 @@ public class RepoJdbcImpl implements Repo {
         long time = rs.getLong(ResultColumn.timeNanos.name);
         String host = rs.getString(ResultColumn.host.name);
         String logPrefixFromDb = rs.getString(ResultColumn.logPrefix.name);
-        logger.info(logPrefix + "borrowing from " + logPrefixFromDb + " on "
-                + host + " result " + ExceptionEnum.erroneousValuesAsStr(time));
+        logger.info(logPrefix + "borrowing from host " + host + " (logPrefix='" + logPrefixFromDb + "') result " + ExceptionEnum.erroneousValuesAsStr(time));
         return time;
     }
 

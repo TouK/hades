@@ -129,7 +129,7 @@ public class SqlTimeBasedTimerTaskMonitorTest {
                 Executors.newFixedThreadPool(1)
         );
 
-        SqlTimeBasedTimerTaskMonitor monitor = new SqlTimeBasedTimerTaskMonitor(hadesMock, 100, 50, 1, true, true, sqlTimeCalculator, 1, 1, 1);
+        SqlTimeBasedTimerTaskMonitor monitor = new SqlTimeBasedTimerTaskMonitor(hadesMock, 100, 50, 1, true, true, sqlTimeCalculator, 1, 1, 1, "localhost");
 
         Connection connectionMock = mock(Connection.class);
         PreparedStatement statementMock = mock(PreparedStatement.class);
@@ -170,7 +170,8 @@ public class SqlTimeBasedTimerTaskMonitorTest {
                 sqlTimeCalculator,
                 1,
                 1,
-                1);
+                1,
+                "localhost");
 
         monitor.init();
 

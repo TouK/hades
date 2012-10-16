@@ -22,7 +22,6 @@ import pl.touk.hades.Hades;
 import pl.touk.hades.Utils;
 import pl.touk.hades.load.Load;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -54,7 +53,8 @@ public class SqlTimeBasedMonitorImpl implements SqlTimeBasedMonitor {
                                    SqlTimeCalculator calc,
                                    int currentToUnusedRatio,
                                    int backOffMultiplier,
-                                   int backOffMaxRatio)
+                                   int backOffMaxRatio,
+                                   String host)
             throws UnknownHostException {
 
         Utils.assertNotNull(hades, "hades");
@@ -62,13 +62,14 @@ public class SqlTimeBasedMonitorImpl implements SqlTimeBasedMonitor {
         Utils.assertNonNegative(sqlTimeTriggeringFailbackMillis, "sqlTimeTriggeringFailbackMillis");
         Utils.assertPositive(sqlTimesIncludedInAverage, "sqlTimesIncludedInAverage");
         Utils.assertNotNull(calc, "calc");
+        Utils.assertNonEmpty(host, "host");
 
         this.hades = hades;
         this.calc = calc;
 
         this.state = new State(new SqlTimeBasedLoadFactory(Utils.millisToNanos(sqlTimeTriggeringFailoverMillis),
                                                            Utils.millisToNanos(sqlTimeTriggeringFailbackMillis)),
-                InetAddress.getLocalHost().getHostName(),
+                host,
                 sqlTimesIncludedInAverage,
                 exceptionsIgnoredAfterRecovery,
                 recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery,

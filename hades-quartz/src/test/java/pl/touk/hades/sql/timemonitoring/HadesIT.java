@@ -360,15 +360,15 @@ public class HadesIT {
         return monitor.getLastQueryTimeMillis(main);
     }
 
-    private Machine runMachineSimulatorOnSeparateJvm(int debugPort, boolean debugSuspend, String name, String log4jConfiguration, String context) throws IOException {
+    private Machine runMachineSimulatorOnSeparateJvm(int debugPort, boolean debugSuspend, String host, String log4jConfiguration, String context) throws IOException {
         ServerSocket masterSocket = new ServerSocket(0);
         ProcessBuilder builder;
         if (debugPort > 0) {
-            builder = new ProcessBuilder(Arrays.asList("java", "-Dlog4j.debug=true", "-Xdebug", "-Xrunjdwp:transport=dt_socket,server=y,suspend=" + (debugSuspend ? "y" : "n") + ",address=" + debugPort, "-Dlog4j.configuration=" + log4jConfiguration, "-cp", System.getProperty("java.class.path"), this.getClass().getName(), Integer.toString(masterSocket.getLocalPort()), context, name));
+            builder = new ProcessBuilder(Arrays.asList("java", "-Dinstance.name=quartz1@" + host, "-Dlog4j.debug=true", "-Xdebug", "-Xrunjdwp:transport=dt_socket,server=y,suspend=" + (debugSuspend ? "y" : "n") + ",address=" + debugPort, "-Dlog4j.configuration=" + log4jConfiguration, "-cp", System.getProperty("java.class.path"), this.getClass().getName(), Integer.toString(masterSocket.getLocalPort()), context, host));
         } else {
-            builder = new ProcessBuilder(Arrays.asList("java", "-Dlog4j.configuration=" + log4jConfiguration, "-cp", System.getProperty("java.class.path"), this.getClass().getName(), Integer.toString(masterSocket.getLocalPort()), context, name));
+            builder = new ProcessBuilder(Arrays.asList("java", "-Dinstance.name=quartz1@" + host, "-Dlog4j.configuration=" + log4jConfiguration, "-cp", System.getProperty("java.class.path"), this.getClass().getName(), Integer.toString(masterSocket.getLocalPort()), context, host));
         }
-        Machine machine = new Machine(builder.start(), masterSocket, name);
+        Machine machine = new Machine(builder.start(), masterSocket, host);
         machine.instructSlave(CmdName.ping.withArgs(testName.getMethodName()));
         return machine;
     }

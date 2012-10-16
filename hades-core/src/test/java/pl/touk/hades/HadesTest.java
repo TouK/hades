@@ -143,7 +143,7 @@ public class HadesTest {
                 new SqlTimeCalculatorImpl(
                         hades, 1, null, SqlTimeBasedTimerTaskMonitorTest.createSqlTimeRepoMock(), "select", 1, 1);
         SqlTimeBasedTimerTaskMonitor monitor = new SqlTimeBasedTimerTaskMonitor(
-                hades, 1, 1, 1, false, false, loadCalculator, 1, 1, 1);
+                hades, 1, 1, 1, false, false, loadCalculator, 1, 1, 1, "localhost");
         monitor.init();
 
         // when:
