@@ -135,7 +135,8 @@ public class RepoJdbcImpl implements Repo {
                         int connTimeoutMillis,
                         int sqlExecTimeout,
                         int sqlExecTimeoutForcingPeriodMillis,
-                        ExecutorService externalExecutor)
+                        ExecutorService externalExecutor,
+                        String host)
             throws UnknownHostException {
         this.borrowExistingMatchingResultIfYoungerThanMillis = borrowExistingMatchingResultIfYoungerThanMillis;
         this.dataSource = dataSource;
@@ -143,7 +144,24 @@ public class RepoJdbcImpl implements Repo {
         this.sqlExecTimeout = sqlExecTimeout;
         this.sqlExecTimeoutForcingPeriodMillis = sqlExecTimeoutForcingPeriodMillis;
         this.externalExecutor = externalExecutor;
-        this.host = InetAddress.getLocalHost().getHostName();
+        this.host = getNonEmptyHost(host);
+    }
+
+    private String getNonEmptyHost(String host) {
+        if (host != null && host.length() > 0) {
+            return host;
+        } else {
+            try {
+                host = InetAddress.getLocalHost().getHostName();
+            } catch (UnknownHostException e) {
+                throw new RuntimeException("exception while getting the host name", e);
+            }
+            if (host != null && host.length() > 0) {
+                return host;
+            } else {
+                throw new RuntimeException("null or empty host name");
+            }
+        }
     }
 
     public Connection getConnection(String logPrefix)

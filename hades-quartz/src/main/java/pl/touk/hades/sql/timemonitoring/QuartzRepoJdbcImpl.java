@@ -124,10 +124,11 @@ public class QuartzRepoJdbcImpl implements QuartzRepo {
                               int sqlExecTimeout,
                               int sqlExecTimeoutForcingPeriodMillis,
                               ExecutorService externalExecutor,
-                              String quartzCluster)
+                              String quartzCluster,
+                              String host)
             throws UnknownHostException {
         repo = new RepoJdbcImpl(borrowExistingMatchingResultIfYoungerThanMillis, dataSource, connTimeoutMillis,
-                sqlExecTimeout, sqlExecTimeoutForcingPeriodMillis, externalExecutor);
+                sqlExecTimeout, sqlExecTimeoutForcingPeriodMillis, externalExecutor, host);
         this.quartzCluster = quartzCluster;
     }
 
