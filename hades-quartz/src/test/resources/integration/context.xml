@@ -47,6 +47,8 @@
 
     <bean id="quartzCluster" factory-bean="scheduler" factory-method="getSchedulerName"/>
 
+    <bean id="hostName" class="pl.touk.hades.HostName" factory-method="get"/>
+
     <bean id="repo" class="pl.touk.hades.sql.timemonitoring.QuartzRepoJdbcImpl">
         <constructor-arg name="borrowExistingMatchingResultIfYoungerThanMillis" value="20000"/>
         <constructor-arg name="dataSource"                                      ref="quartzDs"/>
@@ -55,6 +57,7 @@
         <constructor-arg name="sqlExecTimeoutForcingPeriodMillis"               value="1000"/>
         <constructor-arg name="externalExecutor"                                ref="executor"/>
         <constructor-arg name="quartzCluster"                                   ref="quartzCluster"/>
+        <constructor-arg name="host"                                            ref="hostName"/>
     </bean>
 
     <bean id="calcAlfa" class="pl.touk.hades.sql.timemonitoring.SqlTimeQuartzCalculatorImpl">
