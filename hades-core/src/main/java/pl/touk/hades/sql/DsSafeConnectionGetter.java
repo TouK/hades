@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pl.touk.hades.Utils;
 import pl.touk.hades.sql.exception.ConnException;
+import pl.touk.hades.sql.timemonitoring.MonitorRunLogPrefix;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -31,7 +32,7 @@ public class DsSafeConnectionGetter extends SafeConnectionGetter {
     }
 
     @Override
-    protected Connection getConnection(String logPrefix) throws ConnException {
+    protected Connection getConnection(MonitorRunLogPrefix logPrefix) throws ConnException {
         Connection connection;
         String connDesc = "a connection to " + getDsDescription() + " ";
         long start = System.nanoTime();
@@ -43,14 +44,16 @@ public class DsSafeConnectionGetter extends SafeConnectionGetter {
         try {
             long timeElapsedNanos = System.nanoTime() - start;
             if (logger.isDebugEnabled()) {
-                logger.debug(logPrefix + "successfully got " + connDesc + "in " + Utils.nanosToMillisAsStr(timeElapsedNanos));
+                logger.debug(logPrefix + "successfully got " + connDesc +
+                        "in " + Utils.nanosToMillisAsStr(timeElapsedNanos));
             }
             return connection;
         } catch (RuntimeException e) {
             try {
                 connection.close();
             } catch (SQLException e1) {
-                logger.error(logPrefix + "successfully got" + connDesc + "but unexpected exception occurred (logged below); after that an attempt to close the connection resulted in another exception", e1);
+                logger.error(logPrefix + "successfully got" + connDesc + "but unexpected exception occurred (logged " +
+                        "below); after that an attempt to close the connection resulted in another exception", e1);
             } finally {
                 logger.error(logPrefix + "successfully got" + connDesc + "but unexpected exception occurred", e);
             }
@@ -58,9 +61,10 @@ public class DsSafeConnectionGetter extends SafeConnectionGetter {
         }
     }
 
-    private ConnException handleException(String logPrefix, String connDesc, Exception e, long start) {
+    private ConnException handleException(MonitorRunLogPrefix logPrefix, String connDesc, Exception e, long start) {
         long timeElapsedNanos = System.nanoTime() - start;
-        logger.error(logPrefix + "exception while getting " + connDesc + "caught in " + Utils.nanosToMillisAsStr(timeElapsedNanos), e);
+        logger.error(logPrefix + "exception while getting " + connDesc +
+                "caught in " + Utils.nanosToMillisAsStr(timeElapsedNanos), e);
         return new ConnException(logPrefix, e);
     }
 }

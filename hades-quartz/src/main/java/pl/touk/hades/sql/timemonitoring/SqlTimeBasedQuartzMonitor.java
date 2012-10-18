@@ -46,8 +46,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
-import static pl.touk.hades.Utils.indent;
-
 /**
 * Monitor that usesTrigger that activates failover when the main data source
 * is overloaded in comparison to the failover data source.
@@ -69,7 +67,6 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
     private final Scheduler scheduler;
     private final String schedulerName;
     private final String schedulerInstanceId;
-    private final String schedulerInstanceIdHumanReadable;
     private final static List<SqlTimeBasedQuartzMonitor> sqlTimeBasedMonitors = new ArrayList<SqlTimeBasedQuartzMonitor>();
     private final int sqlTimeBasedMonitorsIndex;
     private final static String sqlTimeBasedMonitorsIndexKey = "sqlTimeBasedMonitorsIndex";
@@ -102,7 +99,6 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
                                      long startDelayMillis,
                                      long syncAttemptDelayMillis,
                                      Scheduler scheduler,
-                                     String schedulerInstanceIdHumanReadable,
                                      ExecutorService syncExecutor,
                                      int monitoringMethodDurationHistorySize)
             throws UnknownHostException, SchedulerException {
@@ -117,9 +113,6 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
 
         this.schedulerName = scheduler.getSchedulerName();
         this.schedulerInstanceId = scheduler.getSchedulerInstanceId();
-        this.schedulerInstanceIdHumanReadable =
-                schedulerInstanceIdHumanReadable != null && schedulerInstanceIdHumanReadable.length() > 0 ?
-                        schedulerInstanceIdHumanReadable : null;
         this.hadesQuartzGroup = hadesQuartzGroupPrefix + schedulerName;
         String suffix = hades.getMainDsName() + '_' + hades.getFailoverDsName();
         this.hadesQuartzJob = hadesQuartzJobPrefix + suffix;
@@ -148,7 +141,8 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
                 currentToUnusedRatio,
                 backOffMultiplier,
                 backOffMaxRatio,
-                repo.getHost());
+                repo.getHost(),
+                repo.getSchedulerInstanceHumanReadable());
 
         this.calc = calc;
         this.repo = repo;
@@ -166,30 +160,32 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
     private void syncPeriodically(Trigger quartzTrigger, Date firstFireTime) {
         Date fireTime = firstFireTime;
         do {
-            String curSyncLogPrefix = createLogPrefix(fireTime, true);
-            logger.info(curSyncLogPrefix + "syncing started");
+            MonitorRunLogPrefix logPrefix = createLogPrefix(fireTime, true);
+            logger.info(logPrefix + "syncing started");
             try {
-                fireTime = syncAndGetNextFireTime(indent(curSyncLogPrefix), quartzTrigger, fireTime);
-                logger.info(curSyncLogPrefix + "syncing ended");
+                fireTime = syncAndGetNextFireTime(logPrefix.indent(), quartzTrigger, fireTime);
+                logger.info(logPrefix + "syncing ended");
             } catch (RuntimeException e) {
-                logger.info(curSyncLogPrefix + "syncing ended with exception", e);
+                logger.info(logPrefix + "syncing ended with exception", e);
                 throw e;
             } catch (java.lang.InterruptedException e) {
-                logger.warn(curSyncLogPrefix + "interrupted hence exiting");
+                logger.warn(logPrefix + "interrupted hence exiting");
                 Thread.currentThread().interrupt();
                 return;
             }
         } while (true);
     }
 
-    private String createLogPrefix(Date fireTime, boolean sync) {
-        return "[" + (schedulerInstanceIdHumanReadable != null ?
-                schedulerInstanceIdHumanReadable + ", " : "")
-                + monitor.getHades() + ", fireTime=" + Utils.formatTime(fireTime)
-                + (sync ? ", sync" : "") + "] ";
+    private MonitorRunLogPrefix createLogPrefix(Date fireTime, boolean sync) {
+        return new MonitorRunLogPrefix(
+                (repo.getSchedulerInstanceHumanReadable() != null ?
+                        repo.getSchedulerInstanceHumanReadable() + ", " : "") +
+                        monitor.getHades() + ", fireTime=" + Utils.formatTime(fireTime) + (sync ? ", sync" : "")
+        );
     }
 
-    private Date syncAndGetNextFireTime(String logPrefix, Trigger quartzTrigger, Date fireTime) throws InterruptedException {
+    private Date syncAndGetNextFireTime(MonitorRunLogPrefix logPrefix, Trigger quartzTrigger, Date fireTime)
+            throws InterruptedException {
         sleepUntilQuartzTriggerFiredAndSyncDelayPassed(logPrefix, fireTime);
         int attempt = 1;
         do {
@@ -209,9 +205,9 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
 
     }
 
-    private void checkScheduler(String logPrefix) {
+    private void checkScheduler(MonitorRunLogPrefix logPrefix) {
         logger.info(logPrefix + " checking why cannot sync...");
-        logPrefix = indent(logPrefix);
+        logPrefix = logPrefix.indent();
 
         try {
             logger.info(logPrefix + scheduler.getMetaData().getSummary());
@@ -233,7 +229,8 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
             String[] triggerState = new String[1];
             Trigger t = findHadesQuartzTrigger(triggerState);
             if (t != null) {
-                logger.error(logPrefix + "found hades quartz trigger" + t.toString() + " with state " + triggerState[0]);
+                logger.error(logPrefix + "found hades quartz trigger" +
+                        t.toString() + " with state " + triggerState[0]);
                 logger.info(logPrefix + "previous fire time: " + t.getPreviousFireTime());
             } else {
                 logger.error(logPrefix + "no hades quartz trigger");
@@ -251,7 +248,8 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
 
     private JobExecutionContext hadesJobIsExecuting() throws SchedulerException {
         for (JobExecutionContext c: (List<JobExecutionContext>) scheduler.getCurrentlyExecutingJobs()) {
-            if (hadesQuartzJob.equals(c.getJobDetail().getName()) && hadesQuartzGroup.equals(c.getJobDetail().getGroup())) {
+            if (hadesQuartzJob.equals(c.getJobDetail().getName())
+                    && hadesQuartzGroup.equals(c.getJobDetail().getGroup())) {
                 return c;
             }
         }
@@ -289,21 +287,25 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
         }
     }
 
-    private void sleepUntilQuartzTriggerFiredAndSyncDelayPassed(String curSyncLogPrefix, Date nearestFireTime) throws InterruptedException {
+    private void sleepUntilQuartzTriggerFiredAndSyncDelayPassed(MonitorRunLogPrefix curSyncLogPrefix,
+                                                                Date nearestFireTime) throws InterruptedException {
         long delay = calculateSyncDelayMillis();
         long nextSyncTime = nearestFireTime.getTime() + delay;
         long now = System.currentTimeMillis();
         if (nextSyncTime > now) {
-            logger.info(curSyncLogPrefix + "sleeping until fireTime + delay = " + Utils.df.format(new Date(nextSyncTime)) + " (calculated delay: " + delay + " ms)");
+            logger.info(curSyncLogPrefix + "sleeping until fireTime + delay = " +
+                    Utils.df.format(new Date(nextSyncTime)) + " (calculated delay: " + delay + " ms)");
             Thread.sleep(nextSyncTime - now);
             logger.info(curSyncLogPrefix + "continuing syncing after sleep");
         } else {
             // Strange situation. Nothing we can do about it. Just return.
-            logger.warn(curSyncLogPrefix + "calculated nextSyncTime=" + Utils.format(new Date(nextSyncTime)) + " is not after now=" + Utils.format(new Date(now)));
+            logger.warn(curSyncLogPrefix + "calculated nextSyncTime=" + Utils.format(new Date(nextSyncTime)) +
+                    " is not after now=" + Utils.format(new Date(now)));
         }
     }
 
-    private boolean syncStateWithHadesCluster(String logPrefix, Date fireTime, int attempt) throws InterruptedException {
+    private boolean syncStateWithHadesCluster(MonitorRunLogPrefix logPrefix, Date fireTime, int attempt)
+            throws InterruptedException {
         long minPossibleFireTime = fireTime.getTime() - 1000;
         if (minPossibleFireTime < startOfLastRunMethod) {
             logger.info(logPrefix + "attempt " + attempt + ": sync not needed: run method is executing locally");
@@ -316,14 +318,14 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
         }
         long[] measuringDurationMillis = new long[1];
         State state = repo.getHadesClusterState(
-                logPrefix + "attempt " + attempt + ": ",
+                logPrefix.append("attempt " + attempt + ": "),
                 getHades(),
                 minPossibleFireTime,
                 measuringDurationMillis
         );
         if (state != null) {
             saveMonitoringMethodDuration(measuringDurationMillis[0]);
-            monitor.setState(null, calc.syncValidate(logPrefix, state));
+            monitor.setState(logPrefix, calc.syncValidate(logPrefix, state));
             return true;
         } else {
             return false;
@@ -341,7 +343,8 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
 
     private String getSchedulerInfo() {
         return "[" + schedulerName + ", " + schedulerInstanceId +
-                (schedulerInstanceIdHumanReadable != null ? " (" + schedulerInstanceIdHumanReadable + ")" : "") + "] ";
+                (repo.getSchedulerInstanceHumanReadable() != null ?
+                        " (" + repo.getSchedulerInstanceHumanReadable() + ")" : "") + "] ";
     }
 
     public void scheduleWithQuartz() {
@@ -361,7 +364,8 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
     }
 
     private Trigger schedule(Date[] firstFireTime) {
-        String s = hadesQuartzJob + " with " + hadesQuartzTrigger + " on " + getSchedulerInfo() + "with cron '" + cron + "'";
+        String s = hadesQuartzJob + " with " + hadesQuartzTrigger +
+                " on " + getSchedulerInfo() + "with cron '" + cron + "'";
         try {
             scheduler.deleteJob(hadesQuartzJob, hadesQuartzGroup);
             JobDetail jobDetail = new JobDetail(hadesQuartzJob, hadesQuartzGroup, HadesJob.class, false, true, false);
@@ -386,13 +390,15 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
         return map;
     }
 
-    private void restoreStateFromJobExecutionContext(String curRunLogPrefix, JobExecutionContext map) {
+    private void restoreStateFromJobExecutionContext(MonitorRunLogPrefix logPrefix, JobExecutionContext map) {
         State newState = (State) map.getMergedJobDataMap().get(stateKey);
-        State oldState = monitor.setState(curRunLogPrefix, newState);
+        State oldState = monitor.setState(logPrefix, newState);
         if (!oldState.equals(newState)) {
-            logger.debug(curRunLogPrefix + "restoring state from quartz job data map:\nold: " + oldState + "\nnew: " + newState);
+            logger.debug(logPrefix + "restoring state from quartz job data map:\nold: " +
+                    oldState + "\nnew: " + newState);
         } else {
-            logger.debug(curRunLogPrefix + "hades state received from quartz job data map is equal to the current state");
+            logger.debug(logPrefix +
+                    "hades state received from quartz job data map is equal to the current state");
         }
     }
 
@@ -400,11 +406,11 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
         public void execute(JobExecutionContext ctx) throws JobExecutionException {
             SqlTimeBasedQuartzMonitor monitor = extractMonitor(ctx);
             monitor.saveRunMethodStartTime();
-            String logPrefix = monitor.createLogPrefix(ctx.getTrigger().getPreviousFireTime(), false);
+            MonitorRunLogPrefix logPrefix = monitor.createLogPrefix(ctx.getTrigger().getPreviousFireTime(), false);
             logger.info(logPrefix + "HadesJob started");
             try {
-                monitor.restoreStateFromJobExecutionContext(indent(logPrefix), ctx);
-                monitor.run(indent(logPrefix), ctx);
+                monitor.restoreStateFromJobExecutionContext(logPrefix.indent(), ctx);
+                monitor.run(logPrefix.indent(), ctx);
                 ctx.getJobDetail().setJobDataMap(monitor.createHadesJobDataMap());
                 logger.info(logPrefix + "HadesJob ended");
             } catch(RuntimeException e) {
@@ -444,7 +450,8 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
         return max;
     }
 
-    private static SqlTimeBasedQuartzMonitor extractMonitor(JobExecutionContext jobExecutionContext) throws JobExecutionException {
+    private static SqlTimeBasedQuartzMonitor extractMonitor(JobExecutionContext jobExecutionContext)
+            throws JobExecutionException {
         int index = jobExecutionContext.getMergedJobDataMap().getInt(sqlTimeBasedMonitorsIndexKey);
         SqlTimeBasedQuartzMonitor monitor;
         synchronized (sqlTimeBasedMonitors) {
@@ -472,7 +479,7 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
         return cron;
     }
 
-    void run(String logPrefix, JobExecutionContext ctx) throws InterruptedException {
+    void run(MonitorRunLogPrefix logPrefix, JobExecutionContext ctx) throws InterruptedException {
         State newState = monitor.run(logPrefix);
         repo.saveHadesClusterState(logPrefix, getHades(), newState, ctx.getTrigger().getPreviousFireTime().getTime());
     }

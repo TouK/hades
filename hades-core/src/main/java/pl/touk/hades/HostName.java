@@ -6,7 +6,7 @@ import java.io.InputStreamReader;
 
 public class HostName {
 
-    public final static String hostName = getHostName();
+    private final static String hostName = getHostName();
 
     private static String getHostName() {
         try {

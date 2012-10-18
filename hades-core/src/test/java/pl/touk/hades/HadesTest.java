@@ -17,6 +17,7 @@ package pl.touk.hades;
 
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Matchers.anyString;
@@ -132,25 +133,28 @@ public class HadesTest {
     }
 
     @Test
-    public void shouldLogTimeoutExceptionIfWaitingForConnectionToMainDsTooLong() throws SQLException, InterruptedException, UnknownHostException {
+    public void shouldLogTimeoutExceptionIfWaitingForConnectionToMainDsTooLong()
+            throws SQLException, InterruptedException, UnknownHostException {
         // given:
         Hades<SqlTimeBasedMonitorImpl> hades = new Hades<SqlTimeBasedMonitorImpl>(
                 createMockDataSource("mainDs", false, 1100),
                 createMockDataSource("failoverDs", false, 0),
                 "mainDs",
                 "failoverDsName");
+        Repo repo = SqlTimeBasedTimerTaskMonitorTest.createSqlTimeRepoMock();
         SqlTimeCalculatorImpl loadCalculator =
                 new SqlTimeCalculatorImpl(
-                        hades, 1, null, SqlTimeBasedTimerTaskMonitorTest.createSqlTimeRepoMock(), "select", 1, 1);
+                        hades, 1, null, repo, "select", 1, 1);
         SqlTimeBasedTimerTaskMonitor monitor = new SqlTimeBasedTimerTaskMonitor(
-                hades, 1, 1, 1, false, false, loadCalculator, 1, 1, 1, "localhost");
+                hades, 1, 1, 1, false, false, loadCalculator, 1, 1, 1, repo);
         monitor.init();
 
         // when:
         monitor.run();
 
         // then:
-        assertEquals(ExceptionEnum.valueForException(new ConnTimeout("")), monitor.getLastQueryTimeNanos(true));
+        assertEquals(ExceptionEnum.valueForException(new ConnTimeout(new MonitorRunLogPrefix())),
+                     monitor.getLastQueryTimeNanos(true));
     }
 
     @Test
@@ -187,6 +191,7 @@ public class HadesTest {
         // given:
         Hades ds = createMockFailoverDataSource(failover, true);
         SQLException thrownException = null;
+
         // when:
         try {
             if (withAuth) {
@@ -194,15 +199,21 @@ public class HadesTest {
             } else {
                 ds.getConnection();
             }
+            fail();
         } catch (SQLException e) {
             thrownException = e;
         }
+
         // then:
         assertEquals(failover ? "failoverDs" : "mainDs", thrownException.getMessage());
     }
 
     private Hades createMockFailoverDataSource(boolean failoverActive, boolean throwException) throws SQLException {
-        Hades<Monitor> ds = new Hades<Monitor>(createMockDataSource("mainDs", throwException), createMockDataSource("failoverDs", throwException), "m", "f");
+        Hades<Monitor> ds = new Hades<Monitor>(
+                createMockDataSource("mainDs", throwException),
+                createMockDataSource("failoverDs", throwException),
+                "m",
+                "f");
         Monitor activator = mock(Monitor.class);
         when(activator.isFailoverActive()).thenReturn(failoverActive);
         when(activator.getHades()).thenReturn(ds);
@@ -214,7 +225,8 @@ public class HadesTest {
         return createMockDataSource(name, throwException, 0);
     }
 
-    private DataSource createMockDataSource(String name, boolean throwException, final int getConnectionDurationMillis) throws SQLException {
+    private DataSource createMockDataSource(String name, boolean throwException, final int getConnectionDurationMillis)
+            throws SQLException {
         DataSource ds = mock(DataSource.class);
         final Connection conn = mock(Connection.class);
         when(conn.toString()).thenReturn(name);

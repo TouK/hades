@@ -2,6 +2,7 @@ package pl.touk.hades.sql.timemonitoring;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import pl.touk.hades.Hades;
 import pl.touk.hades.Utils;
 import pl.touk.hades.exception.LoadMeasuringException;
 import pl.touk.hades.exception.UnexpectedException;
@@ -15,8 +16,6 @@ import java.net.UnknownHostException;
 import java.sql.*;
 import java.util.Date;
 import java.util.concurrent.ExecutorService;
-
-import static pl.touk.hades.Utils.indent;
 
 public class RepoJdbcImpl implements Repo {
 
@@ -33,7 +32,9 @@ public class RepoJdbcImpl implements Repo {
         sqlExecTimeout ("EXEC_TIMEOUT", Types.INTEGER),
         timeNanos      ("TIME_NANOS"  , Types.INTEGER),
         host           ("HOST"        , Types.VARCHAR),
-        logPrefix      ("LOG_PREFIX"  , Types.VARCHAR),
+        repo           ("REPO"        , Types.VARCHAR),
+        mainDs         ("MAIN_DS"     , Types.VARCHAR),
+        failoverDs     ("FAILOVER_DS" , Types.VARCHAR),
         ts             ("TS"          , Types.TIMESTAMP);
 
         private final String name;
@@ -83,7 +84,9 @@ public class RepoJdbcImpl implements Repo {
                     ResultColumn.timeNanos + " = ?, " +
                     ResultColumn.ts + " = ?, " +
                     ResultColumn.host + " = ?, " +
-                    ResultColumn.logPrefix + " = ? " +
+                    ResultColumn.repo + " = ?, " +
+                    ResultColumn.mainDs + " = ?, " +
+                    ResultColumn.failoverDs + " = ? " +
             "WHERE " +
                     ResultColumn.ds + " = ? " +
                     "AND " + ResultColumn.sql + " = ? " +
@@ -93,7 +96,9 @@ public class RepoJdbcImpl implements Repo {
             "SELECT " +
                     ResultColumn.timeNanos + "," +
                     ResultColumn.host + "," +
-                    ResultColumn.logPrefix + " " +
+                    ResultColumn.repo + "," +
+                    ResultColumn.mainDs + "," +
+                    ResultColumn.failoverDs + " " +
             "FROM " +
                     table + " " +
             "WHERE " +
@@ -129,6 +134,7 @@ public class RepoJdbcImpl implements Repo {
     private final ExecutorService externalExecutor;
 
     private final String host;
+    private final String repoId;
 
     public RepoJdbcImpl(int borrowExistingMatchingResultIfYoungerThanMillis,
                         DataSource dataSource,
@@ -136,8 +142,8 @@ public class RepoJdbcImpl implements Repo {
                         int sqlExecTimeout,
                         int sqlExecTimeoutForcingPeriodMillis,
                         ExecutorService externalExecutor,
-                        String host)
-            throws UnknownHostException {
+                        String host,
+                        String repoId) {
         this.borrowExistingMatchingResultIfYoungerThanMillis = borrowExistingMatchingResultIfYoungerThanMillis;
         this.dataSource = dataSource;
         this.connTimeoutMillis = connTimeoutMillis;
@@ -145,6 +151,7 @@ public class RepoJdbcImpl implements Repo {
         this.sqlExecTimeoutForcingPeriodMillis = sqlExecTimeoutForcingPeriodMillis;
         this.externalExecutor = externalExecutor;
         this.host = getNonEmptyHost(host);
+        this.repoId = repoId != null && repoId.length() > 0 ? repoId : null;
     }
 
     private String getNonEmptyHost(String host) {
@@ -164,7 +171,7 @@ public class RepoJdbcImpl implements Repo {
         }
     }
 
-    public Connection getConnection(String logPrefix)
+    public Connection getConnection(MonitorRunLogPrefix logPrefix)
             throws UnexpectedException, ConnException, ConnTimeout, InterruptedException {
         return new DsSafeConnectionGetter(
                 connTimeoutMillis,
@@ -186,29 +193,29 @@ public class RepoJdbcImpl implements Repo {
                 externalExecutor);
     }
 
-    public void execute(String logPrefix, PreparedStatement preparedStatement, boolean update, String sql)
+    public void execute(MonitorRunLogPrefix logPrefix, PreparedStatement preparedStatement, boolean update, String sql)
             throws SqlExecException, SqlExecTimeout, UnexpectedException, InterruptedException {
         execute(logPrefix, preparedStatement, update, sql, hadesRepoDesc);
     }
 
-    public void execute(String logPrefix, PreparedStatement preparedStatement, boolean update, String sql, String dsName)
+    public void execute(MonitorRunLogPrefix logPrefix, PreparedStatement preparedStatement, boolean update, String sql, String dsName)
             throws SqlExecException, SqlExecTimeout, UnexpectedException, InterruptedException {
         createExecutor(dsName).execute(logPrefix, preparedStatement, update, sql);
     }
 
-    public PreparedStatement prepareStmt(String logPrefix, Connection c, String sql)
+    public PreparedStatement prepareStmt(MonitorRunLogPrefix logPrefix, Connection c, String sql)
             throws SqlExecTimeoutSettingException, PrepareStmtException {
         return Utils.safelyPrepareStatement(logPrefix, c, hadesRepoDesc, sqlExecTimeout, sql);
     }
 
-    public PreparedStatement prepareStmt(String logPrefix, Connection c, String sql, String dsName)
+    public PreparedStatement prepareStmt(MonitorRunLogPrefix logPrefix, Connection c, String sql, String dsName)
             throws SqlExecTimeoutSettingException, PrepareStmtException {
         return Utils.safelyPrepareStatement(logPrefix, c, dsName, sqlExecTimeout, sql);
     }
 
-    public Long findSqlTimeYoungerThan(String logPrefix, String dsName, String sql) throws InterruptedException {
+    public Long findSqlTimeYoungerThan(MonitorRunLogPrefix logPrefix, String dsName, String sql) throws InterruptedException {
         logger.debug(logPrefix + "findSqlTimeYoungerThan");
-        logPrefix = indent(logPrefix);
+        logPrefix = logPrefix.indent();
 
         Connection c = null;
         PreparedStatement ps = null;
@@ -234,15 +241,18 @@ public class RepoJdbcImpl implements Repo {
         }
     }
 
-    private long borrowTime(String logPrefix, ResultSet rs) throws SQLException {
+    private long borrowTime(MonitorRunLogPrefix logPrefix, ResultSet rs) throws SQLException {
         long time = rs.getLong(ResultColumn.timeNanos.name);
         String host = rs.getString(ResultColumn.host.name);
-        String logPrefixFromDb = rs.getString(ResultColumn.logPrefix.name);
-        logger.info(logPrefix + "borrowing from host " + host + " (logPrefix='" + logPrefixFromDb + "') result " + ExceptionEnum.erroneousValuesAsStr(time));
+        String repoId = rs.getString(ResultColumn.repo.name);
+        String mainDs = rs.getString(ResultColumn.mainDs.name);
+        String failoverDs = rs.getString(ResultColumn.failoverDs.name);
+        logger.info(logPrefix + "borrowing from hades " + mainDs + "/" + failoverDs + " on " + repoId +
+                " on host " + host + " result " + ExceptionEnum.erroneousValuesAsStr(time));
         return time;
     }
 
-    private PreparedStatement bindSelectParams(String logPrefix, Connection c, String dsName, String sql)
+    private PreparedStatement bindSelectParams(MonitorRunLogPrefix logPrefix, Connection c, String dsName, String sql)
             throws SQLException, SqlExecTimeoutSettingException, PrepareStmtException {
         PreparedStatement ps = prepareStmt(logPrefix, c, select, dsName);
         int i = 1;
@@ -255,12 +265,12 @@ public class RepoJdbcImpl implements Repo {
         return ps;
     }
 
-    public long storeException(String curRunLogPrefix, String dsName, Exception e, String sql)
+    public long storeException(MonitorRunLogPrefix curRunLogPrefix, Hades hades, String dsName, Exception e, String sql)
             throws InterruptedException {
         if (e instanceof LoadMeasuringException) {
             LoadMeasuringException lme = (LoadMeasuringException) e;
             if (lme instanceof ConnException || lme instanceof SqlExecTimeout) {
-                return storeSqlTime(curRunLogPrefix, dsName, ExceptionEnum.valueForException(lme), sql);
+                return storeSqlTime(curRunLogPrefix, hades, dsName, ExceptionEnum.valueForException(lme), sql);
             } else {
                 return ExceptionEnum.valueForException(lme);
             }
@@ -269,9 +279,10 @@ public class RepoJdbcImpl implements Repo {
         }
     }
 
-    public long storeSqlTime(String logPrefix, String dsName, long time, String sql) throws InterruptedException {
+    public long storeSqlTime(MonitorRunLogPrefix logPrefix, Hades hades, String dsName, long time, String sql)
+            throws InterruptedException {
         logger.debug(logPrefix + "storeSqlTime");
-        logPrefix = indent(logPrefix);
+        logPrefix = logPrefix.indent();
 
         Connection c = null;
         try {
@@ -288,30 +299,35 @@ public class RepoJdbcImpl implements Repo {
         }
 
         try {
-            int updatedCount = updateSqlTime(logPrefix, c, dsName, time, sql);
+            int updatedCount = updateSqlTime(logPrefix, c, hades, dsName, time, sql);
 
             if (updatedCount == 0) {
                 logger.debug(logPrefix + "trying insert because nothing updated");
-                insertSqlTime(logPrefix, c, dsName, time, sql);
+                insertSqlTime(logPrefix, c, hades, dsName, time, sql);
             } else if (updatedCount == 1) {
                 logger.debug(logPrefix + "updated result");
             }
 
             return time;
         } finally {
-            close(indent(logPrefix), null, null, c);
+            close(logPrefix, null, null, c);
         }
     }
 
-    private int updateSqlTime(String logPrefix, Connection c, String dsName, long time, String sql) throws InterruptedException {
+    private int updateSqlTime(MonitorRunLogPrefix logPrefix,
+                              Connection c,
+                              Hades hades,
+                              String dsName,
+                              long time,
+                              String sql) throws InterruptedException {
         logger.debug(logPrefix + "updateSqlTime");
-        logPrefix = indent(logPrefix);
+        logPrefix = logPrefix.indent();
 
         PreparedStatement ps = null;
         final String logSuffix = " for dsName=" + dsName;
         try {
             ps = prepareStmt(logPrefix, c, update);
-            bindUpdateParams(logPrefix, ps, time, dsName, sql);
+            bindUpdateParams(ps, time, hades, dsName, sql);
             SafeSqlExecutor safeSqlExecutor = createExecutor();
             safeSqlExecutor.execute(logPrefix, ps, true, update);
             int updatedCount = safeSqlExecutor.getUpdatedCount();
@@ -332,13 +348,15 @@ public class RepoJdbcImpl implements Repo {
         }
     }
 
-    private void bindUpdateParams(String logPrefix, PreparedStatement ps, long time, String dsName, String sql)
+    private void bindUpdateParams(PreparedStatement ps, long time, Hades hades, String dsName, String sql)
             throws SQLException {
         int i = 1;
         ResultColumn.timeNanos.bind(ps, time, i++);
         ResultColumn.ts.bind(ps, new Timestamp(new Date().getTime()), i++);
         ResultColumn.host.bind(ps, host, i++);
-        ResultColumn.logPrefix.bind(ps, logPrefix, i++);
+        ResultColumn.repo.bind(ps, repoId, i++);
+        ResultColumn.mainDs.bind(ps, hades.getMainDsName(), i++);
+        ResultColumn.failoverDs.bind(ps, hades.getFailoverDsName(), i++);
         ResultColumn.ds.bind(ps, dsName, i++);
         ResultColumn.sql.bind(ps, sql, i++);
         ResultColumn.connTimeout.bind(ps, connTimeoutMillis, i++);
@@ -346,14 +364,14 @@ public class RepoJdbcImpl implements Repo {
 
     }
 
-    private void insertSqlTime(String logPrefix, Connection c, String dsName, long time, String sql) {
+    private void insertSqlTime(MonitorRunLogPrefix logPrefix, Connection c, Hades hades, String dsName, long time, String sql) {
         logger.debug(logPrefix + "insertSqlTime");
-        logPrefix = indent(logPrefix);
+        logPrefix = logPrefix.indent();
 
         PreparedStatement ps = null;
         try {
             ps = prepareStmt(logPrefix, c, insert);
-            bindInsertParams(logPrefix, ps, time, dsName, sql);
+            bindInsertParams(ps, time, hades, dsName, sql);
             execute(logPrefix, ps, false, insert);
             logger.debug(logPrefix + "inserted result " + time);
         } catch (Exception e) {
@@ -363,7 +381,7 @@ public class RepoJdbcImpl implements Repo {
         }
     }
 
-    private void bindInsertParams(String logPrefix, PreparedStatement ps, long time, String dsName, String sql)
+    private void bindInsertParams(PreparedStatement ps, long time, Hades hades, String dsName, String sql)
             throws SQLException {
         ResultColumn.ds.bind(ps, dsName);
         ResultColumn.sql.bind(ps, sql);
@@ -371,11 +389,13 @@ public class RepoJdbcImpl implements Repo {
         ResultColumn.sqlExecTimeout.bind(ps, sqlExecTimeout);
         ResultColumn.timeNanos.bind(ps, time);
         ResultColumn.host.bind(ps, host);
-        ResultColumn.logPrefix.bind(ps, logPrefix);
+        ResultColumn.repo.bind(ps, repoId);
+        ResultColumn.mainDs.bind(ps, hades.getMainDsName());
+        ResultColumn.failoverDs.bind(ps, hades.getFailoverDsName());
         ResultColumn.ts.bind(ps, new Timestamp(new Date().getTime()));
     }
 
-    public void close(String logPrefix, ResultSet rs, PreparedStatement ps, Connection c) {
+    public void close(MonitorRunLogPrefix logPrefix, ResultSet rs, PreparedStatement ps, Connection c) {
         if (rs != null) {
             try {
                 rs.close();
@@ -421,5 +441,9 @@ public class RepoJdbcImpl implements Repo {
 
     public String getHost() {
         return host;
+    }
+
+    public String getRepoId() {
+        return repoId;
     }
 }

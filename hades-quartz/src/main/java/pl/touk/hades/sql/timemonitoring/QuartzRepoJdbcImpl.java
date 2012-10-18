@@ -24,8 +24,6 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.util.concurrent.ExecutorService;
 
-import static pl.touk.hades.Utils.indent;
-
 public class QuartzRepoJdbcImpl implements QuartzRepo {
 
     private static final Logger logger = LoggerFactory.getLogger(QuartzRepoJdbcImpl.class);
@@ -35,6 +33,7 @@ public class QuartzRepoJdbcImpl implements QuartzRepo {
     public static enum StateColumn {
         modifyTimeMillis        ("MODIFIED_MILLIS", Types.INTEGER),
         host                    ("HOST"           , Types.VARCHAR),
+        quartzInstance          ("QUARTZ_INSTANCE", Types.VARCHAR),
         quartCluster            ("QUARTZ_CLUSTER" , Types.VARCHAR),
         mainDs                  ("MAIN_DS"        , Types.VARCHAR),
         failoverDs              ("FAILOVER_DS"    , Types.VARCHAR),
@@ -82,7 +81,8 @@ public class QuartzRepoJdbcImpl implements QuartzRepo {
 
     private static final String stateColumnList = StateColumn.list();
     private static final String stateQuestionMarkList = StateColumn.questionMarkList();
-    private static final String insertState = "INSERT INTO " + stateTable + " (" + stateColumnList + ") VALUES (" + stateQuestionMarkList + ")";
+    private static final String insertState =
+            "INSERT INTO " + stateTable + " (" + stateColumnList + ") VALUES (" + stateQuestionMarkList + ")";
 
     private static final String updateState =
             "UPDATE " +
@@ -91,6 +91,7 @@ public class QuartzRepoJdbcImpl implements QuartzRepo {
                     StateColumn.modifyTimeMillis + " = ?, " +
                     StateColumn.failover + " = ?, " +
                     StateColumn.host + " = ?, " +
+                    StateColumn.quartzInstance + " = ?, " +
                     StateColumn.mainTimeNanos + " = ?, " +
                     StateColumn.failoverTimeNanos + " = ?, " +
                     StateColumn.measuringDurationMillis + " = ? " +
@@ -105,6 +106,7 @@ public class QuartzRepoJdbcImpl implements QuartzRepo {
                     StateColumn.failover + ", " +
                     StateColumn.measuringDurationMillis + ", " +
                     StateColumn.host + ", " +
+                    StateColumn.quartzInstance + ", " +
                     StateColumn.mainTimeNanos + ", " +
                     StateColumn.failoverTimeNanos + " " +
             "FROM " +
@@ -125,17 +127,28 @@ public class QuartzRepoJdbcImpl implements QuartzRepo {
                               int sqlExecTimeoutForcingPeriodMillis,
                               ExecutorService externalExecutor,
                               String quartzCluster,
-                              String host)
-            throws UnknownHostException {
-        repo = new RepoJdbcImpl(borrowExistingMatchingResultIfYoungerThanMillis, dataSource, connTimeoutMillis,
-                sqlExecTimeout, sqlExecTimeoutForcingPeriodMillis, externalExecutor, host);
+                              String host,
+                              String schedulerInstanceIdHumanReadable)
+    throws UnknownHostException {
+        repo = new RepoJdbcImpl(
+                borrowExistingMatchingResultIfYoungerThanMillis,
+                dataSource,
+                connTimeoutMillis,
+                sqlExecTimeout,
+                sqlExecTimeoutForcingPeriodMillis,
+                externalExecutor,
+                host,
+                schedulerInstanceIdHumanReadable);
         this.quartzCluster = quartzCluster;
     }
 
-    public State getHadesClusterState(String logPrefix, Hades hades, long lowerBound, long[] measuringDurationMillis)
+    public State getHadesClusterState(MonitorRunLogPrefix logPrefix,
+                                      Hades hades,
+                                      long lowerBound,
+                                      long[] measuringDurationMillis)
             throws InterruptedException {
         logger.debug(logPrefix + "getHadesClusterState");
-        logPrefix = indent(logPrefix);
+        logPrefix = logPrefix.indent();
         Connection c = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
@@ -159,7 +172,7 @@ public class QuartzRepoJdbcImpl implements QuartzRepo {
         }
     }
 
-    private PreparedStatement prepareStateSelect(String logPrefix,
+    private PreparedStatement prepareStateSelect(MonitorRunLogPrefix logPrefix,
                                                  Connection c,
                                                  long lowerBound,
                                                  String mainDsName,
@@ -177,22 +190,27 @@ public class QuartzRepoJdbcImpl implements QuartzRepo {
         return ps;
     }
 
-    private State extractState(String logPrefix, ResultSet rs, long[] measuringDurationMillis) throws SQLException {
+    private State extractState(MonitorRunLogPrefix logPrefix, ResultSet rs, long[] measuringDurationMillis)
+            throws SQLException {
         long modifyTimeMillis       = rs.getLong    (StateColumn.modifyTimeMillis.name);
         boolean failover            = rs.getBoolean (StateColumn.failover.name);
         measuringDurationMillis[0]  = rs.getLong    (StateColumn.measuringDurationMillis.name);
         String host                 = rs.getString  (StateColumn.host.name);
+        String quartzInstance       = rs.getString  (StateColumn.quartzInstance.name);
         long mainTimeNanos          = rs.getLong    (StateColumn.mainTimeNanos.name);
         long failoverTimeNanos      = rs.getLong    (StateColumn.failoverTimeNanos.name);
-        logger.info(logPrefix + "borrowing from " + host + " result failover=" + failover + " with modifyTimeMillis="
-                + modifyTimeMillis + " and measuringDurationMillis=" + measuringDurationMillis[0]);
-        return new State(host, modifyTimeMillis, failover, mainTimeNanos, failoverTimeNanos);
+        logger.info(logPrefix + "borrowing from " + quartzInstance + " on host " + host +
+                " result failover=" + failover + " with modifyTimeMillis=" + modifyTimeMillis +
+                " and measuringDurationMillis=" + measuringDurationMillis[0]);
+        return new State(host, quartzInstance, modifyTimeMillis, failover, mainTimeNanos, failoverTimeNanos);
     }
 
-    public void saveHadesClusterState(String logPrefix, Hades hades, State state, long runMethodStartMillis)
-            throws InterruptedException {
+    public void saveHadesClusterState(MonitorRunLogPrefix logPrefix,
+                                      Hades hades,
+                                      State state,
+                                      long runMethodStartMillis) throws InterruptedException {
         logger.debug(logPrefix + "saveHadesClusterState");
-        logPrefix = indent(logPrefix);
+        logPrefix = logPrefix.indent();
 
         Connection c = null;
         try {
@@ -222,20 +240,25 @@ public class QuartzRepoJdbcImpl implements QuartzRepo {
         }
     }
 
-    private int updateHadesClusterState(String logPrefix,
+    private int updateHadesClusterState(MonitorRunLogPrefix logPrefix,
                                         Hades hades,
                                         Connection c,
                                         State state,
                                         long runMethodStartMillis)
             throws InterruptedException {
         logger.debug(logPrefix + "updateHadesClusterState");
-        logPrefix = indent(logPrefix);
+        logPrefix = logPrefix.indent();
 
         PreparedStatement ps = null;
         try {
             ps = repo.prepareStmt(logPrefix, c, updateState);
             SafeSqlExecutor safeSqlExecutor = repo.createExecutor();
-            bindStateUpdateParameters(ps, state, runMethodStartMillis, hades.getMainDsName(), hades.getFailoverDsName());
+            bindStateUpdateParameters(
+                    ps,
+                    state,
+                    runMethodStartMillis,
+                    hades.getMainDsName(),
+                    hades.getFailoverDsName());
             safeSqlExecutor.execute(logPrefix, ps, true, updateState);
 
             int updatedCount = safeSqlExecutor.getUpdatedCount();
@@ -267,6 +290,7 @@ public class QuartzRepoJdbcImpl implements QuartzRepo {
         StateColumn.modifyTimeMillis.bind(ps, state.getModifyTimeMillis(), i++);
         StateColumn.failover.bind(ps, state.getMachineState().isFailoverActive(), i++);
         StateColumn.host.bind(ps, repo.getHost(), i++);
+        StateColumn.quartzInstance.bind(ps, getRepoId(), i++);
         StateColumn.mainTimeNanos.bind(ps, state.getAvg().getLast(), i++);
         StateColumn.failoverTimeNanos.bind(ps, state.getAvgFailover().getLast(), i++);
         int measuringDurationNanosIndex = i++;
@@ -274,22 +298,30 @@ public class QuartzRepoJdbcImpl implements QuartzRepo {
         StateColumn.mainDs.bind(ps, mainDsName, i++);
         StateColumn.failoverDs.bind(ps, failoverDsName, i++);
 
-        StateColumn.measuringDurationMillis.bind(ps, System.currentTimeMillis() - runMethodStartMillis, measuringDurationNanosIndex);
+        StateColumn.measuringDurationMillis.bind(
+                ps,
+                System.currentTimeMillis() - runMethodStartMillis,
+                measuringDurationNanosIndex);
     }
 
-    private void insertHadesClusterState(String logPrefix,
+    private void insertHadesClusterState(MonitorRunLogPrefix logPrefix,
                                          Connection c,
                                          State state,
                                          long runMethodStartMillis,
                                          Hades hades) {
         logger.debug(logPrefix + "insertHadesClusterState");
-        logPrefix = indent(logPrefix);
+        logPrefix = logPrefix.indent();
 
         PreparedStatement ps = null;
         try {
             SafeSqlExecutor executor = repo.createExecutor();
             ps = repo.prepareStmt(logPrefix, c, insertState);
-            bindStateInsertParameters(ps, state, runMethodStartMillis, hades.getMainDsName(), hades.getFailoverDsName());
+            bindStateInsertParameters(
+                    ps,
+                    state,
+                    runMethodStartMillis,
+                    hades.getMainDsName(),
+                    hades.getFailoverDsName());
             executor.execute(logPrefix, ps, false, insertState);
             logger.debug(logPrefix + "inserted " + state);
         } catch (Exception e) {
@@ -310,25 +342,37 @@ public class QuartzRepoJdbcImpl implements QuartzRepo {
         StateColumn.mainDs.bind(ps, mainDsName);
         StateColumn.quartCluster.bind(ps, quartzCluster);
         StateColumn.host.bind(ps, repo.getHost());
+        StateColumn.quartzInstance.bind(ps, getSchedulerInstanceHumanReadable());
         StateColumn.modifyTimeMillis.bind(ps, state.getModifyTimeMillis());
         StateColumn.mainTimeNanos.bind(ps, state.getAvg().getLast());
         StateColumn.failoverTimeNanos.bind(ps, state.getAvgFailover().getLast());
         StateColumn.measuringDurationMillis.bind(ps, System.currentTimeMillis() - runMethodStartMillis);
     }
 
-    public Long findSqlTimeYoungerThan(String curRunLogPrefix, String dsName, String sql) throws InterruptedException {
+    public Long findSqlTimeYoungerThan(MonitorRunLogPrefix curRunLogPrefix, String dsName, String sql)
+            throws InterruptedException {
         return repo.findSqlTimeYoungerThan(curRunLogPrefix, dsName, sql);
     }
 
-    public long storeSqlTime(String curRunLogPrefix, String dsName, long time, String sql) throws InterruptedException {
-        return repo.storeSqlTime(curRunLogPrefix, dsName, time, sql);
+    public long storeSqlTime(MonitorRunLogPrefix curRunLogPrefix, Hades hades, String dsName, long time, String sql)
+            throws InterruptedException {
+        return repo.storeSqlTime(curRunLogPrefix, hades, dsName, time, sql);
     }
 
-    public long storeException(String curRunLogPrefix, String dsName, Exception e, String sql) throws InterruptedException {
-        return repo.storeException(curRunLogPrefix, dsName, e, sql);
+    public long storeException(MonitorRunLogPrefix curRunLogPrefix, Hades hades, String dsName, Exception e, String sql)
+            throws InterruptedException {
+        return repo.storeException(curRunLogPrefix, hades, dsName, e, sql);
     }
 
     public String getHost() {
         return repo.getHost();
+    }
+
+    public String getRepoId() {
+        return repo.getRepoId();
+    }
+
+    public String getSchedulerInstanceHumanReadable() {
+        return getRepoId();
     }
 }

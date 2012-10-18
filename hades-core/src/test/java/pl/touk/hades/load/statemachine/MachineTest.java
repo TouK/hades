@@ -45,7 +45,6 @@ public class MachineTest {
 
     @Test
     public void shouldKeepFailoverActiveAsLongAsMainLoadIsAtLeastMedium() {
-        Machine m = Machine.createStateMachine();
         ArrayList<Load> atLeastMediumMainLoads = new ArrayList<Load>();
         atLeastMediumMainLoads.addAll(Arrays.asList(
                 new Load(medium, low),
@@ -61,7 +60,6 @@ public class MachineTest {
 
     @Test
     public void shouldFailbackWhenMainLoadTurnsFromMediumToLow() {
-        Machine m = Machine.createStateMachine();
         ArrayList<Load> lowMainLoads = new ArrayList<Load>();
         lowMainLoads.addAll(Arrays.asList(
                 new Load(low),
@@ -76,7 +74,6 @@ public class MachineTest {
 
     @Test
     public void shouldFailbackWhenFailoverLoadTurnsFromMediumToHigh() {
-        Machine m = Machine.createStateMachine();
         ArrayList<Load> lowMainLoads = new ArrayList<Load>();
         lowMainLoads.addAll(Arrays.asList(
                 new Load(low, high),

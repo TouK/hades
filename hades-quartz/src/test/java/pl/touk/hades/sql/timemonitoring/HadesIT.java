@@ -96,7 +96,10 @@ public class HadesIT {
                         ctx.getBean("monitorAlfa");
                         ctx.getBean("monitorBeta");
                         ctx.getBean("scheduler", Scheduler.class).start();
-                        runQuartzSchedulerForGivenTime(ctx, Integer.parseInt(cmd.getArg(0)), java.lang.Boolean.parseBoolean(cmd.getArg(1)));
+                        runQuartzSchedulerForGivenTime(
+                                ctx,
+                                Integer.parseInt(cmd.getArg(0)),
+                                java.lang.Boolean.parseBoolean(cmd.getArg(1)));
                         master.sendResultToMaster(cmd.succeed());
                         break;
                     case prepareOneShotCronForMonitor:
@@ -114,7 +117,10 @@ public class HadesIT {
                         master.sendResultToMaster(cmd.succeed());
                         break;
                     case getLastQueryTimeMillis:
-                        long lastQueryTimeMillis = getLastQueryTimeMillis(ctx, Boolean.parseBoolean(cmd.getArg(0)), cmd.getArg(1));
+                        long lastQueryTimeMillis = getLastQueryTimeMillis(
+                                ctx,
+                                Boolean.parseBoolean(cmd.getArg(0)),
+                                cmd.getArg(1));
                         master.sendResultToMaster(cmd.succeed(Long.toString(lastQueryTimeMillis)));
                         break;
                     case stop:
@@ -134,10 +140,14 @@ public class HadesIT {
                     if (!cmd.isReplied()) {
                         master.sendResultToMaster(cmd.fail(e.getClass().getName(), ": ", e.getMessage()));
                     } else {
-                        logger.error("exception occurred but reply for command " + cmd + " already sent to master hence master can't be informed", e);
+                        logger.error("exception occurred but reply for command " + cmd +
+                                " already sent to master hence master can't be informed", e);
                     }
                 } else {
-                    logger.error("exception occurred but no command has been read from master hence master can't be informed", e);
+                    logger.error(
+                            "exception occurred but no command has been read " +
+                                    "from master hence master can't be informed",
+                            e);
                 }
             } catch (RuntimeException re) {
                 logger.error("runtime exception", re);
@@ -159,9 +169,26 @@ public class HadesIT {
     public void before() throws IOException {
         ClassPathXmlApplicationContext ctx = new ClassPathXmlApplicationContext("/integration/quartz_db_init.xml");
         ctx.close();
-//        host1 = runMachineSimulatorOnSeparateJvm(3850, true, "host1", "integration/log4j_host1.properties", "/integration/context.xml");
-        host1 = runMachineSimulatorOnSeparateJvm(-1, true, "host1", "integration/log4j_host1.properties", "/integration/context.xml");
-        host2 = runMachineSimulatorOnSeparateJvm(-1, true, "host2", "integration/log4j_host2.properties", "/integration/context.xml");
+        // If you need debugging comment out the following:
+//        host1 = runMachineSimulatorOnSeparateJvm(
+//                3850,
+//                true,
+//                "host1",
+//                "integration/log4j_host1.properties",
+//                "/integration/context.xml");
+        // If you need debugging comment the following:
+        host1 = runMachineSimulatorOnSeparateJvm(
+                -1,
+                true,
+                "host1",
+                "integration/log4j_host1.properties",
+                "/integration/context.xml");
+        host2 = runMachineSimulatorOnSeparateJvm(
+                -1,
+                true,
+                "host2",
+                "integration/log4j_host2.properties",
+                "/integration/context.xml");
     }
 
     @After
@@ -177,7 +204,8 @@ public class HadesIT {
     }
 
     @Test
-    public void hadesAlfaOnHost1ShouldBorrowPositiveResultForDhFromHadesBetaOnHost2() throws IOException, InterruptedException, SchedulerException, SQLException {
+    public void hadesAlfaOnHost1ShouldBorrowPositiveResultForDhFromHadesBetaOnHost2()
+            throws IOException, InterruptedException, SchedulerException, SQLException {
         // given:
         int queryTimeMillis = 246;
         long lastQueryTimeMillis;
@@ -205,12 +233,15 @@ public class HadesIT {
 
         // then:
         lastQueryTimeMillis = host1.getLastQueryTimeMillis(false, "monitorAlfa");
-        assertTrue("queryTimeMillis: " + queryTimeMillis + ", lastQueryTimeMillis: " + lastQueryTimeMillis, queryTimeMillis <= lastQueryTimeMillis + 2);
-        assertTrue("queryTimeMillis: " + queryTimeMillis + ", lastQueryTimeMillis: " + lastQueryTimeMillis, queryTimeMillis + 30 >= lastQueryTimeMillis);
+        assertTrue("queryTimeMillis: " + queryTimeMillis + ", lastQueryTimeMillis: " + lastQueryTimeMillis,
+                queryTimeMillis <= lastQueryTimeMillis + 2);
+        assertTrue("queryTimeMillis: " + queryTimeMillis + ", lastQueryTimeMillis: " + lastQueryTimeMillis,
+                queryTimeMillis + 30 >= lastQueryTimeMillis);
     }
 
     @Test
-    public void hadesBetaOnHost2ShouldBorrowPositiveResultForDhFromHadesAlfaOnHost1() throws IOException, InterruptedException, SchedulerException, SQLException {
+    public void hadesBetaOnHost2ShouldBorrowPositiveResultForDhFromHadesAlfaOnHost1()
+            throws IOException, InterruptedException, SchedulerException, SQLException {
         // given:
         long queryTimeMillis = 219;
         long lastQueryTimeMillis;
@@ -238,12 +269,15 @@ public class HadesIT {
 
         // then:
         lastQueryTimeMillis = host2.getLastQueryTimeMillis(false, "monitorBeta");
-        assertTrue("queryTimeMillis: " + queryTimeMillis + ", lastQueryTimeMillis: " + lastQueryTimeMillis, queryTimeMillis <= lastQueryTimeMillis + 2);
-        assertTrue("queryTimeMillis: " + queryTimeMillis + ", lastQueryTimeMillis: " + lastQueryTimeMillis, queryTimeMillis + 30 >= lastQueryTimeMillis);
+        assertTrue("queryTimeMillis: " + queryTimeMillis + ", lastQueryTimeMillis: " + lastQueryTimeMillis,
+                queryTimeMillis <= lastQueryTimeMillis + 2);
+        assertTrue("queryTimeMillis: " + queryTimeMillis + ", lastQueryTimeMillis: " + lastQueryTimeMillis,
+                queryTimeMillis + 30 >= lastQueryTimeMillis);
     }
 
     @Test
-    public void hadesAlfaOnHost1ShouldInsertResultForDh() throws IOException, InterruptedException, SchedulerException, SQLException {
+    public void hadesAlfaOnHost1ShouldInsertResultForDh()
+            throws IOException, InterruptedException, SchedulerException, SQLException {
         // given:
         int queryTimeMillis = 152;
 
@@ -260,7 +294,8 @@ public class HadesIT {
     }
 
     @Test
-    public void hadesAlfaOnHost1ShouldBeReplacedByHadesAlfaOnHost2WhenHost1Stops() throws IOException, InterruptedException, SchedulerException, SQLException {
+    public void hadesAlfaOnHost1ShouldBeReplacedByHadesAlfaOnHost2WhenHost1Stops()
+            throws IOException, InterruptedException, SchedulerException, SQLException {
         // when:
         host1.startSpring();
         host2.startSpring();
@@ -297,7 +332,9 @@ public class HadesIT {
         return 0;
     }
 
-    private static void configureDsQueryTimeMillis(ApplicationContext ctx, final String dsName, final long queryTimeMillis) throws SQLException {
+    private static void configureDsQueryTimeMillis(ApplicationContext ctx,
+                                                   final String dsName,
+                                                   final long queryTimeMillis) throws SQLException {
         DataSource dsMock = ctx.getBean(dsName, DataSource.class);
         Connection connectionMock = mock(Connection.class);
         PreparedStatement statementMock = mock(PreparedStatement.class);
@@ -318,7 +355,9 @@ public class HadesIT {
         });
     }
 
-    private static void runQuartzSchedulerForGivenTime(ClassPathXmlApplicationContext ctx, final int duration, boolean async) throws SchedulerException {
+    private static void runQuartzSchedulerForGivenTime(ClassPathXmlApplicationContext ctx,
+                                                       final int duration,
+                                                       boolean async) {
         final Scheduler scheduler = ctx.getBean("scheduler", Scheduler.class);
         Runnable runnable = new Runnable() {
             public void run() {
@@ -348,7 +387,9 @@ public class HadesIT {
         c.add(Calendar.SECOND, secondsFromNow);
         Calendar c2 = Calendar.getInstance();
         c2.setTime(new Date(Utils.roundMillisWithSecondPrecision(c.getTime().getTime())));
-        StringFactory.beansByName.put(cronName, c2.get(Calendar.SECOND) + " " + c.get(Calendar.MINUTE) + " " + c.get(Calendar.HOUR_OF_DAY) + " * * ?");
+        StringFactory.beansByName.put(
+                cronName,
+                c2.get(Calendar.SECOND) + " " + c.get(Calendar.MINUTE) + " " + c.get(Calendar.HOUR_OF_DAY) + " * * ?");
     }
 
     private static void scheduleTriggerPeriodically(String cronName, int period) {
@@ -360,13 +401,39 @@ public class HadesIT {
         return monitor.getLastQueryTimeMillis(main);
     }
 
-    private Machine runMachineSimulatorOnSeparateJvm(int debugPort, boolean debugSuspend, String host, String log4jConfiguration, String context) throws IOException {
+    private Machine runMachineSimulatorOnSeparateJvm(int debugPort,
+                                                     boolean debugSuspend,
+                                                     String host,
+                                                     String log4jConfiguration,
+                                                     String context) throws IOException {
         ServerSocket masterSocket = new ServerSocket(0);
         ProcessBuilder builder;
         if (debugPort > 0) {
-            builder = new ProcessBuilder(Arrays.asList("java", "-Dinstance.name=quartz1@" + host, "-Dlog4j.debug=true", "-Xdebug", "-Xrunjdwp:transport=dt_socket,server=y,suspend=" + (debugSuspend ? "y" : "n") + ",address=" + debugPort, "-Dlog4j.configuration=" + log4jConfiguration, "-cp", System.getProperty("java.class.path"), this.getClass().getName(), Integer.toString(masterSocket.getLocalPort()), context, host));
+            builder = new ProcessBuilder(Arrays.asList(
+                    "java",
+                    "-Dinstance.name=quartz1@" + host,
+                    "-Dlog4j.debug=true",
+                    "-Xdebug",
+                    "-Xrunjdwp:transport=dt_socket,server=y,suspend=" +
+                            (debugSuspend ? "y" : "n") + ",address=" + debugPort,
+                    "-Dlog4j.configuration=" + log4jConfiguration,
+                    "-cp",
+                    System.getProperty("java.class.path"),
+                    this.getClass().getName(),
+                    Integer.toString(masterSocket.getLocalPort()),
+                    context,
+                    host));
         } else {
-            builder = new ProcessBuilder(Arrays.asList("java", "-Dinstance.name=quartz1@" + host, "-Dlog4j.configuration=" + log4jConfiguration, "-cp", System.getProperty("java.class.path"), this.getClass().getName(), Integer.toString(masterSocket.getLocalPort()), context, host));
+            builder = new ProcessBuilder(Arrays.asList(
+                    "java",
+                    "-Dinstance.name=quartz1@" + host,
+                    "-Dlog4j.configuration=" + log4jConfiguration,
+                    "-cp",
+                    System.getProperty("java.class.path"),
+                    this.getClass().getName(),
+                    Integer.toString(masterSocket.getLocalPort()),
+                    context,
+                    host));
         }
         Machine machine = new Machine(builder.start(), masterSocket, host);
         machine.instructSlave(CmdName.ping.withArgs(testName.getMethodName()));
@@ -497,7 +564,8 @@ public class HadesIT {
         }
 
         public long getLastQueryTimeMillis(boolean main, String monitorName) throws IOException {
-            return Long.parseLong(instructSlave(CmdName.getLastQueryTimeMillis.withArgs(Boolean.toString(main), monitorName)).getResultArg(0));
+            return Long.parseLong(instructSlave(
+                    CmdName.getLastQueryTimeMillis.withArgs(Boolean.toString(main), monitorName)).getResultArg(0));
         }
 
         public void configureDsQueryTimesMillis(String... dsQueryTimeMillisArray) throws IOException {
@@ -571,7 +639,11 @@ public class HadesIT {
         private List<String> results;
         private boolean replied = false;
 
-        private ExecutableCmd(CmdName cmd, List<String> cmdArgs, boolean ended, boolean failed, List<String> resultArgs) {
+        private ExecutableCmd(CmdName cmd,
+                              List<String> cmdArgs,
+                              boolean ended,
+                              boolean failed,
+                              List<String> resultArgs) {
             super(cmd, cmdArgs);
             if (ended) {
                 if (failed) {
@@ -587,11 +659,26 @@ public class HadesIT {
                 String[] array = cmdWithArgs.split(separator);
                 if (array.length > 0 && array[0].length() > 0) {
                     if (array[0].endsWith(resultSuffix)) {
-                        return new ExecutableCmd(CmdName.valueOf(array[0].substring(0, array[0].length() - resultSuffix.length())), null, true, false, Arrays.asList(array).subList(1, array.length));
+                        return new ExecutableCmd(
+                                CmdName.valueOf(array[0].substring(0, array[0].length() - resultSuffix.length())),
+                                null,
+                                true,
+                                false,
+                                Arrays.asList(array).subList(1, array.length));
                     } else if (array[0].endsWith(failureSuffix)) {
-                        return new ExecutableCmd(CmdName.valueOf(array[0].substring(0, array[0].length() - failureSuffix.length())), null, true, true, Arrays.asList(array).subList(1, array.length));
+                        return new ExecutableCmd(
+                                CmdName.valueOf(array[0].substring(0, array[0].length() - failureSuffix.length())),
+                                null,
+                                true,
+                                true,
+                                Arrays.asList(array).subList(1, array.length));
                     } else {
-                        return new ExecutableCmd(CmdName.valueOf(array[0]), Arrays.asList(array).subList(1, array.length), false, false, null);
+                        return new ExecutableCmd(
+                                CmdName.valueOf(array[0]),
+                                Arrays.asList(array).subList(1, array.length),
+                                false,
+                                false,
+                                null);
                     }
                 } else {
                     throw new IllegalArgumentException("no command");
@@ -627,7 +714,9 @@ public class HadesIT {
         }
 
         public ExecutableCmd fail(String... reasonArgs) {
-            return fail(reasonArgs != null ? new ArrayList<String>(Arrays.asList(reasonArgs)) : new ArrayList<String>());
+            return fail(reasonArgs != null ?
+                    new ArrayList<String>(Arrays.asList(reasonArgs)) :
+                    new ArrayList<String>());
         }
 
         private ExecutableCmd fail(List<String> reasonArgs) {
@@ -650,7 +739,9 @@ public class HadesIT {
         }
 
         public ExecutableCmd succeed(String... resultArgs) {
-            return succeed(resultArgs != null && resultArgs.length > 0 ? new ArrayList<String>(Arrays.asList(resultArgs)) : new ArrayList<String>());
+            return succeed(resultArgs != null && resultArgs.length > 0 ?
+                    new ArrayList<String>(Arrays.asList(resultArgs)) :
+                    new ArrayList<String>());
         }
 
         public ExecutableCmd succeed(List<String> resultArgs) {

@@ -14,8 +14,7 @@ import pl.touk.hades.Utils;
 import pl.touk.hades.exception.UnexpectedException;
 import pl.touk.hades.sql.exception.ConnException;
 import pl.touk.hades.sql.exception.ConnTimeout;
-
-import static pl.touk.hades.Utils.indent;
+import pl.touk.hades.sql.timemonitoring.MonitorRunLogPrefix;
 
 /**
  * Implementation of <code>Callable</code> that creates a connection to a given {@link pl.touk.hades.Hades}.
@@ -53,12 +52,12 @@ abstract public class SafeConnectionGetter {
         this.externalExecutor = externalExecutor;
     }
 
-    public Connection getConnectionWithTimeout(String logPrefix) throws InterruptedException, UnexpectedException, ConnException, ConnTimeout {
+    public Connection getConnectionWithTimeout(MonitorRunLogPrefix logPrefix)
+            throws InterruptedException, UnexpectedException, ConnException, ConnTimeout {
         logger.debug(logPrefix + "getConnectionWithTimeout");
-        final String indentedLogPrefix = indent(logPrefix);
+        final MonitorRunLogPrefix indentedLogPrefix = logPrefix.indent();
 
         ExecutorService executor = null;
-        Connection c = null;
         try {
             if (externalExecutor != null) {
                 executor = externalExecutor;
@@ -72,7 +71,8 @@ abstract public class SafeConnectionGetter {
             });
             return getConnection(indentedLogPrefix, future);
         } catch (RejectedExecutionException e) {
-            logger.error(indentedLogPrefix + "unexpected RejectedExecutionException while trying to get connection to " + dsDescription, e);
+            logger.error(indentedLogPrefix +
+                    "unexpected RejectedExecutionException while trying to get connection to " + dsDescription, e);
             throw new UnexpectedException(indentedLogPrefix, e);
         } finally {
             if (externalExecutor == null && executor != null) {
@@ -81,27 +81,31 @@ abstract public class SafeConnectionGetter {
         }
     }
 
-    private Connection getConnection(String logPrefix, Future<Connection> future) throws InterruptedException, ConnException, UnexpectedException, ConnTimeout {
+    private Connection getConnection(MonitorRunLogPrefix logPrefix, Future<Connection> future)
+            throws InterruptedException, ConnException, UnexpectedException, ConnTimeout {
         try {
             return future.get(connTimeoutMillis, TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
             return handleConnException(logPrefix, e);
         } catch (TimeoutException e) {
             cancel(logPrefix, future);
-            logger.error(logPrefix + "could not get connection to " + dsDescription + " within " + connTimeoutMillis + " millisecond(s); assuming that the data source is unavailable; cancelling connection creation", e);
+            logger.error(logPrefix + "could not get connection to " + dsDescription + " within " + connTimeoutMillis +
+                    " millisecond(s); assuming that the data source is unavailable; cancelling connection creation", e);
             throw new ConnTimeout(logPrefix);
         } catch (InterruptedException e) {
             cancel(logPrefix, future);
-            logger.info(logPrefix + "interrupted while getting (with timeout) connection to " + dsDescription + "; cancelling connection creation", e);
+            logger.info(logPrefix + "interrupted while getting (with timeout) connection to " +
+                    dsDescription + "; cancelling connection creation", e);
             throw e;
         } catch (RuntimeException e) {
             cancel(logPrefix, future);
-            logger.error(logPrefix + "could not get connection to " + dsDescription + "; assuming that the data source is unavailable; cancelling connection creation", e);
+            logger.error(logPrefix + "could not get connection to " + dsDescription +
+                    "; assuming that the data source is unavailable; cancelling connection creation", e);
             throw new UnexpectedException(logPrefix, e);
         }
     }
 
-    private void cancel(String logPrefix, Future<Connection> future) {
+    private void cancel(MonitorRunLogPrefix logPrefix, Future<Connection> future) {
         cancel(logPrefix);
         future.cancel(true);
     }
@@ -112,9 +116,10 @@ abstract public class SafeConnectionGetter {
      * @return connection
      * @throws pl.touk.hades.sql.exception.ConnException if an exception occured
      */
-    private Connection safelyGetConnection(String logPrefix) throws ConnException {
+    private Connection safelyGetConnection(MonitorRunLogPrefix logPrefix) throws ConnException {
         if (cancelled()) {
-            logger.info(logPrefix + "cancellation detected before getting connection to " + dsDescription + "; aborting");
+            logger.info(logPrefix + "cancellation detected before getting connection to " +
+                    dsDescription + "; aborting");
             return null;
         }
         Connection connection;
@@ -127,13 +132,15 @@ abstract public class SafeConnectionGetter {
         return returnConnectionOrNullIfCancelInvoked(logPrefix, connection);
     }
 
-    abstract protected Connection getConnection(String logPrefix) throws ConnException;
+    abstract protected Connection getConnection(MonitorRunLogPrefix logPrefix) throws ConnException;
 
-    private Connection handleConnException(String logPrefix, ExecutionException t) throws ConnException, UnexpectedException {
+    private Connection handleConnException(MonitorRunLogPrefix logPrefix, ExecutionException t)
+            throws ConnException, UnexpectedException {
         if (t.getCause() instanceof ConnException) {
             throw (ConnException) t.getCause();
         } else {
-            String s = logPrefix + "unexpected cause of ExecutionException while getting connection to " + getDsDescription();
+            String s = logPrefix + "unexpected cause of ExecutionException while getting connection to " +
+                    getDsDescription();
             logger.error(s, t);
             throw new UnexpectedException(logPrefix, t.getCause());
         }
@@ -145,17 +152,19 @@ abstract public class SafeConnectionGetter {
         }
     }
 
-    private void handleException(String logPrefix) {
+    private void handleException(MonitorRunLogPrefix logPrefix) {
         synchronized (guard) {
             if (!cancelled) {
                 ended = true;
             } else {
-                logger.info(logPrefix + "cancel invoked while connection to " + dsDescription + " was being created in this thread; however, connection closing is unnecessary because connection creation threw an exception (which was logged earlier)");
+                logger.info(logPrefix + "cancel invoked while connection to " + dsDescription +
+                        " was being created in this thread; however, connection closing is unnecessary because" +
+                        " connection creation threw an exception (which was logged earlier)");
             }
         }
     }
 
-    private Connection returnConnectionOrNullIfCancelInvoked(String logPrefix, Connection connection) {
+    private Connection returnConnectionOrNullIfCancelInvoked(MonitorRunLogPrefix logPrefix, Connection connection) {
         synchronized (guard) {
             if (!cancelled) {
                 this.ended = true;
@@ -168,13 +177,15 @@ abstract public class SafeConnectionGetter {
         }
     }
 
-    private void close(String logPrefix, Connection connection, boolean closeInCallMethod) {
+    private void close(MonitorRunLogPrefix logPrefix, Connection connection, boolean closeInCallMethod) {
         try {
-            logger.info(logPrefix + (closeInCallMethod ? "connection to " + dsDescription + " created but cancellation detected; closing connection"
-                                                             : "cancel invoked but connection to " + dsDescription + " already created; closing it"));
+            logger.info(logPrefix + (closeInCallMethod ?
+                    "connection to " + dsDescription + " created but cancellation detected; closing connection" :
+                    "cancel invoked but connection to " + dsDescription + " already created; closing it"));
             connection.close();
-            logger.info(logPrefix + (closeInCallMethod ? "connection to " + dsDescription + " closed after cancellation detection"
-                                                             : "connection to " + dsDescription + " closed"));
+            logger.info(logPrefix + (closeInCallMethod ?
+                    "connection to " + dsDescription + " closed after cancellation detection" :
+                    "connection to " + dsDescription + " closed"));
         } catch (SQLException e) {
             logException(logPrefix, e, closeInCallMethod);
         } catch (RuntimeException e) {
@@ -182,21 +193,24 @@ abstract public class SafeConnectionGetter {
         }
     }
 
-    private void logException(String logPrefix, Exception e, boolean closeInCallMethod) {
-        logger.error(logPrefix + (closeInCallMethod ? "failed to close connection to " + dsDescription + " after cancellation detection"
-                                                          : "failed to close connection to " + dsDescription), e);
+    private void logException(MonitorRunLogPrefix logPrefix, Exception e, boolean closeInCallMethod) {
+        logger.error(logPrefix + (closeInCallMethod ?
+                "failed to close connection to " + dsDescription + " after cancellation detection" :
+                "failed to close connection to " + dsDescription), e);
     }
 
-    private void cancel(String logPrefix) {
+    private void cancel(MonitorRunLogPrefix logPrefix) {
         synchronized (guard) {
             if (!ended) {
                 cancelled = true;
-                logger.info(logPrefix + "cancel invoked but connection to " + dsDescription + " not yet created; if it is created it will be closed");
+                logger.info(logPrefix + "cancel invoked but connection to " +
+                        dsDescription + " not yet created; if it is created it will be closed");
             } else {
                 if (connection != null) {
                     close(logPrefix, connection, false);
                 } else {
-                    logger.info(logPrefix + "cancel invoked but creation of connection to " + dsDescription + " already ended (with exception so connection closing is unnecessary)");
+                    logger.info(logPrefix + "cancel invoked but creation of connection to " +
+                            dsDescription + " already ended (with exception so connection closing is unnecessary)");
                 }
             }
         }

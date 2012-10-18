@@ -34,36 +34,36 @@ import java.util.Arrays;
 public final class State implements Serializable, Cloneable {
 
     private final static Logger logger = LoggerFactory.getLogger(State.class);
-
     private final static long serialVersionUID = 7038908200270943595L;
+    public  final static long notMeasuredInThisCycle = -1L;
+    private final static Machine stateMachine = Machine.createStateMachine();
+    private final static int mainIndex = 0;
+    private final static int failoverIndex = 1;
 
-    public final static long notMeasuredInThisCycle = -1L;
-
-    private static final Machine stateMachine = Machine.createStateMachine();
-
+    // All fields that are set during construction of remote states.
+    // For local states they are also set during construction.
+    private String host;
+    private String repoId;
     private long modifyTimeMillis;
     private Average avg;
     private Average avgFailover;
-    private String host;
-    private SqlTimeHistory history;
-    private SqlTimeHistory historyFailover;
     private MachineState machineState = Machine.initialState;
 
+    // Fields that are set during construction of local states only.
+    private SqlTimeHistory history;
+    private SqlTimeHistory historyFailover;
     private final SqlTimeBasedLoadFactory loadFactory;
-
-    private final static int mainIndex = 0;
-    private final static int failoverIndex = 1;
     private int[] period = new int[2];
     private int[] cycleModuloPeriod = new int[2];
-
     private final int currentToUnusedRatio;
     private final int backOffMultiplier;
     private final int backOffMaxRatio;
     private final String mainDbName;
     private final String failoverDbName;
 
-    private Load loadAfterLastMeasurement;
-    private StateAfterMeasurement[] stateAfterLastMeasurement = new StateAfterMeasurement[2];
+    // Fields that are set only for local states and only during update with new exec times:
+    private Load loadAfterLastMeasurement = null;
+    private StateAfterMeasurement[] stateAfterLastMeasurement = new StateAfterMeasurement[]{null, null};
 
     private enum StateAfterMeasurement {
         notOkDb          ("db load level is " + LoadLevel.high + " or " + LoadLevel.exceptionWhileMeasuring),
@@ -71,7 +71,7 @@ public final class State implements Serializable, Cloneable {
         okDbBecameUnused ("db is ok and became unused"),
         okDbUsed         ("db is ok and used");
 
-        String desc;
+        final String desc;
 
         private StateAfterMeasurement(String desc) {
             this.desc = desc;
@@ -85,6 +85,7 @@ public final class State implements Serializable, Cloneable {
 
     public State(SqlTimeBasedLoadFactory loadFactory,
                  String host,
+                 String repoId,
                  int sqlTimesIncludedInAverage,
                  boolean exceptionsIgnoredAfterRecovery,
                  boolean recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery,
@@ -100,13 +101,20 @@ public final class State implements Serializable, Cloneable {
         Utils.assertPositive(backOffMaxRatio, "backOffMaxRatio");
 
         this.host = host;
+        this.repoId = repoId;
         this.modifyTimeMillis = System.currentTimeMillis();
         this.avg = null;
         this.avgFailover = null;
-        this.history = new SqlTimeHistory(sqlTimesIncludedInAverage, exceptionsIgnoredAfterRecovery, recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery);
-        this.historyFailover = new SqlTimeHistory(sqlTimesIncludedInAverage, exceptionsIgnoredAfterRecovery, recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery);
         this.machineState = Machine.initialState;
 
+        this.history = new SqlTimeHistory(
+                sqlTimesIncludedInAverage,
+                exceptionsIgnoredAfterRecovery,
+                recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery);
+        this.historyFailover = new SqlTimeHistory(
+                sqlTimesIncludedInAverage,
+                exceptionsIgnoredAfterRecovery,
+                recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery);
         this.loadFactory = loadFactory;
         this.setPeriod(false, 1);
         this.setPeriod(true, 1);
@@ -122,19 +130,21 @@ public final class State implements Serializable, Cloneable {
     }
 
     public State(String host,
+                 String repoId,
                  long modifyTimeMillis,
                  boolean failover,
                  long lastMainQueryTimeNanos,
                  long lastFailoverQueryTimeNanos) {
 
         this.host = host;
+        this.repoId = repoId;
         this.modifyTimeMillis = modifyTimeMillis;
         this.avg = new Average(lastMainQueryTimeNanos, 1, lastMainQueryTimeNanos);
         this.avgFailover = new Average(lastFailoverQueryTimeNanos, 1, lastFailoverQueryTimeNanos);
-        this.history = null;
-        this.historyFailover = null;
         this.machineState = new MachineState(failover, (Load) null);
 
+        this.history = null;
+        this.historyFailover = null;
         this.loadFactory = null;
         this.setPeriod(false, -1);
         this.setPeriod(true, -1);
@@ -175,8 +185,8 @@ public final class State implements Serializable, Cloneable {
             }
             copy.period = new int[]{period[0], period[1]};
             copy.cycleModuloPeriod = new int[]{cycleModuloPeriod[0], cycleModuloPeriod[1]};
-            copy.stateAfterLastMeasurement =
-                    new StateAfterMeasurement[]{stateAfterLastMeasurement[0], stateAfterLastMeasurement[1]};
+            copy.stateAfterLastMeasurement = new StateAfterMeasurement[]{
+                    stateAfterLastMeasurement[0], stateAfterLastMeasurement[1]};
             return copy;
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
@@ -203,6 +213,10 @@ public final class State implements Serializable, Cloneable {
         return host;
     }
 
+    public String getRepoId() {
+        return repoId;
+    }
+
     // equals and hashCode methods auto-generated using all fields:
     @Override
     public boolean equals(Object o) {
@@ -224,12 +238,15 @@ public final class State implements Serializable, Cloneable {
         if (historyFailover != null ? !historyFailover.equals(state.historyFailover) : state.historyFailover != null)
             return false;
         if (host != null ? !host.equals(state.host) : state.host != null) return false;
-        if (loadAfterLastMeasurement != null ? !loadAfterLastMeasurement.equals(state.loadAfterLastMeasurement) : state.loadAfterLastMeasurement != null)
+        if (loadAfterLastMeasurement != null ?
+                !loadAfterLastMeasurement.equals(state.loadAfterLastMeasurement) :
+                state.loadAfterLastMeasurement != null)
             return false;
         if (loadFactory != null ? !loadFactory.equals(state.loadFactory) : state.loadFactory != null) return false;
         if (machineState != null ? !machineState.equals(state.machineState) : state.machineState != null) return false;
         if (mainDbName != null ? !mainDbName.equals(state.mainDbName) : state.mainDbName != null) return false;
         if (!Arrays.equals(period, state.period)) return false;
+        if (repoId != null ? !repoId.equals(state.repoId) : state.repoId != null) return false;
         if (!Arrays.equals(stateAfterLastMeasurement, state.stateAfterLastMeasurement)) return false;
 
         return true;
@@ -241,6 +258,7 @@ public final class State implements Serializable, Cloneable {
         result = 31 * result + (avg != null ? avg.hashCode() : 0);
         result = 31 * result + (avgFailover != null ? avgFailover.hashCode() : 0);
         result = 31 * result + (host != null ? host.hashCode() : 0);
+        result = 31 * result + (repoId != null ? repoId.hashCode() : 0);
         result = 31 * result + (history != null ? history.hashCode() : 0);
         result = 31 * result + (historyFailover != null ? historyFailover.hashCode() : 0);
         result = 31 * result + (machineState != null ? machineState.hashCode() : 0);
@@ -265,6 +283,7 @@ public final class State implements Serializable, Cloneable {
                 ", avg=" + avg +
                 ", avgFailover=" + avgFailover +
                 ", host='" + host + '\'' +
+                ", repoId='" + repoId + '\'' +
                 ", history=" + history +
                 ", historyFailover=" + historyFailover +
                 ", machineState=" + machineState +
@@ -286,32 +305,35 @@ public final class State implements Serializable, Cloneable {
      * reverted and this state is returned. If update succeeds then this method returns the clone of this state as it
      * was before this method was invoked.
      *
+     *
      * @param logPrefix
      * @param mainDbStmtExecTimeNanos
      * @param failoverDbStmtExecTimeNanos
-     * @param host
      * @return clone of this state as it was before this method was invoked or this state if
      */
-    public State updateLocalStateWithNewExecTimes(String logPrefix,
-                                                 long mainDbStmtExecTimeNanos,
-                                                 long failoverDbStmtExecTimeNanos,
-                                                 String host) {
+    public State updateLocalStateWithNewExecTimes(MonitorRunLogPrefix logPrefix,
+                                                  long mainDbStmtExecTimeNanos,
+                                                  long failoverDbStmtExecTimeNanos) {
         State copy = clone();
 
         try {
-            copy.doUpdateLocalStateWithNewExecTimes(logPrefix, mainDbStmtExecTimeNanos, failoverDbStmtExecTimeNanos, host);
+            copy.doUpdateLocalStateWithNewExecTimes(
+                    logPrefix,
+                    mainDbStmtExecTimeNanos,
+                    failoverDbStmtExecTimeNanos
+            );
         } catch (RuntimeException e) {
-            logger.error(logPrefix + "exception (shown below) while updating state - reverted all changes made during this operation", e);
+            logger.error(logPrefix + "exception (shown below) while updating state - " +
+                    "reverted all changes made during this operation", e);
             return this.clone();
         }
 
-        return updateState(copy);
+        return updateLocalStateWithNewExecTimes(copy);
     }
 
-    public void doUpdateLocalStateWithNewExecTimes(String logPrefix,
-                                                 long mainDbStmtExecTimeNanos,
-                                                 long failoverDbStmtExecTimeNanos,
-                                                 String host) {
+    public void doUpdateLocalStateWithNewExecTimes(MonitorRunLogPrefix logPrefix,
+                                                   long mainDbStmtExecTimeNanos,
+                                                   long failoverDbStmtExecTimeNanos) {
         modifyTimeMillis = System.currentTimeMillis();
 
         if (!isLocalState()) {
@@ -330,13 +352,11 @@ public final class State implements Serializable, Cloneable {
         MachineState oldMachineState = machineState;
         machineState = stateMachine.transition(oldMachineState, loadAfterLastMeasurement);
 
-        updatedCycleAndPeriod(logPrefix, mainDbStmtExecTimeNanos, oldMachineState, false);
-        updatedCycleAndPeriod(logPrefix, failoverDbStmtExecTimeNanos, oldMachineState, true);
-
-        this.host = host;
+        updatedCycleAndPeriodOfLocalState(logPrefix, mainDbStmtExecTimeNanos, oldMachineState, false);
+        updatedCycleAndPeriodOfLocalState(logPrefix, failoverDbStmtExecTimeNanos, oldMachineState, true);
     }
 
-    private State updateState(State s) {
+    private State updateLocalStateWithNewExecTimes(State s) {
         State old = clone();
 
         modifyTimeMillis         = s.getModifyTimeMillis();
@@ -344,7 +364,6 @@ public final class State implements Serializable, Cloneable {
         avgFailover              = s.getAvgFailover();
         loadAfterLastMeasurement = s.getLoadAfterLastMeasurement();
         machineState             = s.getMachineState();
-        host                     = s.getHost();
         history                  = s.getHistory();
         historyFailover          = s.getHistoryFailover();
 
@@ -379,13 +398,14 @@ public final class State implements Serializable, Cloneable {
         }
     }
 
-    private void updatedCycleAndPeriod(String logPrefix,
-                                       long sqlTimeNanos,
-                                       MachineState oldMachineState,
-                                       boolean failover) {
-        logPrefix += (failover ? failoverDbName :mainDbName) + ": ";
+    private void updatedCycleAndPeriodOfLocalState(MonitorRunLogPrefix logPrefix,
+                                                   long sqlTimeNanos,
+                                                   MachineState oldMachineState,
+                                                   boolean failover) {
+        logPrefix = logPrefix.append((failover ? failoverDbName : mainDbName) + ": ");
         if (sqlTimeNanos != notMeasuredInThisCycle) {
-            if (okDbStillNotUsed(failover, oldMachineState.isFailoverActive(), oldMachineState.getLoad().getLoadLevel(failover))) {
+            if (okDbStillNotUsed(
+                    failover, oldMachineState.isFailoverActive(), oldMachineState.getLoad().getLoadLevel(failover))) {
                 keepDecreasedLoadOfUnusedOkDb(logPrefix, failover);
             } else if (notOkDb(failover)) {
                 decreaseLoadOfNotOkDb(logPrefix, failover);
@@ -408,7 +428,7 @@ public final class State implements Serializable, Cloneable {
         }
     }
 
-    private void keepDecreasedLoadOfUnusedOkDb(String logPrefix, boolean failover) {
+    private void keepDecreasedLoadOfUnusedOkDb(MonitorRunLogPrefix logPrefix, boolean failover) {
         if (getPeriod(failover) != currentToUnusedRatio) {
             throw new IllegalStateException("period != currentToUnusedRatio (" + currentToUnusedRatio
                     + ") for still not used " + (failover ? "failover" : "main") + " db");
@@ -418,18 +438,19 @@ public final class State implements Serializable, Cloneable {
         setStateAfterLastMeasurement(failover, StateAfterMeasurement.okDbStillNotUsed);
     }
 
-    private void decreaseLoadOfNotOkDb(String logPrefix, boolean failover) {
+    private void decreaseLoadOfNotOkDb(MonitorRunLogPrefix logPrefix, boolean failover) {
         int oldPeriod = getPeriod(failover);
         setPeriod(failover, oldPeriod * backOffMultiplier);
         if (getPeriod(failover) > backOffMaxRatio) {
             setPeriod(failover, backOffMaxRatio);
         }
-        logger.info(logPrefix + "load level at least high: increasing period to decrease load: old period=" + oldPeriod + ", new period=" + getPeriod(failover));
+        logger.info(logPrefix + "load level at least high: increasing period to decrease load: old period=" +
+                oldPeriod + ", new period=" + getPeriod(failover));
         increaseCycleModuloPeriod(failover);
         setStateAfterLastMeasurement(failover, StateAfterMeasurement.notOkDb);
     }
 
-    private void decreaseLoadOfOkDbThatBecameUnused(String logPrefix, boolean failover) {
+    private void decreaseLoadOfOkDbThatBecameUnused(MonitorRunLogPrefix logPrefix, boolean failover) {
         if (getPeriod(failover) != 1 || getCycleModuloPeriod(failover) != 0) {
             throw new IllegalStateException("decreaseLoadOfOkDbThatBecameUnused method used but period"
                     + " != 1 (" + getPeriod(failover) + ") or cycleModuloPeriod"
@@ -442,7 +463,7 @@ public final class State implements Serializable, Cloneable {
         setStateAfterLastMeasurement(failover, StateAfterMeasurement.okDbBecameUnused);
     }
 
-    private void keepNormalLoadOfUsedOkDb(String logPrefix, boolean failover) {
+    private void keepNormalLoadOfUsedOkDb(MonitorRunLogPrefix logPrefix, boolean failover) {
         if (getPeriod(failover) > 1) {
             logger.info(logPrefix + "back to period=1 (old period=" + getPeriod(failover)
                     + ") for " + getDbName(failover));
@@ -489,7 +510,7 @@ public final class State implements Serializable, Cloneable {
         return l == high || l == exceptionWhileMeasuring;
     }
 
-    public void copyFrom(String logPrefixIfLocalState, State localOrRemote) {
+    public State copyFrom(MonitorRunLogPrefix logPrefixIfLocalState, State localOrRemote) {
         if (isRemoteState()) {
             throw new IllegalStateException("this state must not be a remote one");
         }
@@ -497,11 +518,14 @@ public final class State implements Serializable, Cloneable {
             throw new IllegalStateException("state to copy from (localOrRemote) must not be a copy of a remote state");
         }
 
+        State oldState = clone();
+
         this.modifyTimeMillis = localOrRemote.getModifyTimeMillis();
         this.loadAfterLastMeasurement = localOrRemote.loadAfterLastMeasurement;
         this.avg = localOrRemote.avg;
         this.avgFailover = localOrRemote.avgFailover;
         this.host = localOrRemote.host;
+        this.repoId = localOrRemote.repoId;
         this.machineState = localOrRemote.machineState;
         this.setPeriod(false, localOrRemote.getPeriod(false));
         this.setPeriod(true, localOrRemote.getPeriod(true));
@@ -518,15 +542,18 @@ public final class State implements Serializable, Cloneable {
             this.historyFailover = null;
             assert isLocalStateCombinedWithRemoteOne();
         }
+
+        return oldState;
     }
 
-    private void checkConfigsIdentical(String logPrefix, State fullState) {
+    private void checkConfigsIdentical(MonitorRunLogPrefix logPrefix, State fullState) {
         if (loadFactory.getFailoverThresholdNanos() != fullState.loadFactory.getFailoverThresholdNanos()
                 || loadFactory.getFailbackThresholdNanos() != fullState.loadFactory.getFailbackThresholdNanos()
                 || currentToUnusedRatio != fullState.currentToUnusedRatio
                 || backOffMultiplier != fullState.backOffMultiplier
                 || backOffMaxRatio != fullState.backOffMaxRatio) {
-            logger.warn(logPrefix + "config difference detected; local state:\n" + this + "\nremote state:\n" + fullState);
+            logger.warn(logPrefix + "config difference detected; local state:\n" +
+                    this + "\nremote state:\n" + fullState);
         }
 
     }
@@ -535,7 +562,7 @@ public final class State implements Serializable, Cloneable {
         return sqlTimeIsMeasuredInThisCycle(null, failover);
     }
 
-    public boolean sqlTimeIsMeasuredInThisCycle(String logPrefix, boolean failover) {
+    public boolean sqlTimeIsMeasuredInThisCycle(MonitorRunLogPrefix logPrefix, boolean failover) {
         boolean isMeasured = getCycleModuloPeriod(failover) == 0;
         if (!isMeasured) {
             if (logPrefix != null) {

@@ -40,22 +40,27 @@ import static org.mockito.Mockito.when;
 public class SqlTimeBasedTimerTaskMonitorTest {
 
     @Test
-    public void shouldCancelExecutionScheduledAtFixedRateIfLastExecutionDelayedTheCurrentOne() throws InterruptedException, SQLException, ConnException, Hades.NoMonitorException, UnknownHostException {
+    public void shouldCancelExecutionScheduledAtFixedRateIfLastExecutionDelayedTheCurrentOne()
+            throws InterruptedException, SQLException, ConnException, Hades.NoMonitorException, UnknownHostException {
         shouldCancelExecutionIfLastExecutionDelayedTheCurrentOne(true);
     }
 
     @Test
-    public void shouldCancelExecutionIfLastExecutionDelayedTheCurrentOne() throws InterruptedException, SQLException, ConnException, Hades.NoMonitorException, UnknownHostException {
+    public void shouldCancelExecutionIfLastExecutionDelayedTheCurrentOne()
+            throws InterruptedException, SQLException, ConnException, Hades.NoMonitorException, UnknownHostException {
         shouldCancelExecutionIfLastExecutionDelayedTheCurrentOne(false);
     }
 
-    private void shouldCancelExecutionIfLastExecutionDelayedTheCurrentOne(boolean scheduleAtFixedRate) throws InterruptedException, SQLException, ConnException, Hades.NoMonitorException, UnknownHostException {
+    private void shouldCancelExecutionIfLastExecutionDelayedTheCurrentOne(boolean scheduleAtFixedRate)
+            throws InterruptedException, SQLException, ConnException, Hades.NoMonitorException, UnknownHostException {
         // given:
         final float[] runMethodExecutionCount = new float[]{0};
         int periodMillis = 200;
         int sleepTimeEqualsToThreeAndAHalfPeriodsMillis = (int) (3.5 * periodMillis);
         int runMethodExecTimeEqualsToOneAndAHalfPeriodsMillis = (int) (1.5 * periodMillis);
-        SqlTimeBasedTimerTaskMonitor monitor = createSqlTimeBasedTimerTaskMonitorExecutingRunMethodForGivenTimeMillis(runMethodExecTimeEqualsToOneAndAHalfPeriodsMillis, runMethodExecutionCount);
+        SqlTimeBasedTimerTaskMonitor monitor = createSqlTimeBasedTimerTaskMonitorExecutingRunMethodForGivenTimeMillis(
+                runMethodExecTimeEqualsToOneAndAHalfPeriodsMillis,
+                runMethodExecutionCount);
 
         // when:
         Timer timer = new Timer();
@@ -75,10 +80,15 @@ public class SqlTimeBasedTimerTaskMonitorTest {
     public void shouldFailover() throws SQLException, InterruptedException, UnknownHostException {
         // given:
         SqlTimeBasedTimerTaskMonitor activator = createSqlTimeBasedTimerTaskMonitor(200, 100,
-                new int[]{33, 66, 50, 50, 50, 150, 133, 166, 150, 250, 250, 250, 250, 300, 150, 166, 133, 150, 50, 250, 50, 300, 50, 250, 150, 250, 250},
-                new int[]{66, 33, 50, 150, 250, 50, 166, 133, 250, 300, 50, 50, 150, 250, 50, 133, 166, 150, 50, 150, 150, 250, 250, 50, 250, 150, 350});
-        boolean[] expectedFailoverActive = new boolean[]
-                {false, false, false, false, false, false, false, false, false, false, true, true, true, true, true, true, true, true, false, true, false, true, false, true, false, true, false};
+                new int[]{
+                        33, 66, 50, 50, 50, 150, 133, 166, 150, 250, 250, 250, 250, 300,
+                        150, 166, 133, 150, 50, 250, 50, 300, 50, 250, 150, 250, 250},
+                new int[]{
+                        66, 33, 50, 150, 250, 50, 166, 133, 250, 300, 50, 50, 150, 250,
+                        50, 133, 166, 150, 50, 150, 150, 250, 250, 50, 250, 150, 350});
+        boolean[] expectedFailoverActive = new boolean[]{
+                false, false, false, false, false, false, false, false, false, false, true, true, true,
+                true, true, true, true, true, false, true, false, true, false, true, false, true, false};
         boolean[] actualFailoverActive = new boolean[expectedFailoverActive.length];
 
         // when:
@@ -97,10 +107,15 @@ public class SqlTimeBasedTimerTaskMonitorTest {
     public void shouldFailoverForEqualLimits() throws SQLException, InterruptedException, UnknownHostException {
         // given:
         SqlTimeBasedTimerTaskMonitor activator = createSqlTimeBasedTimerTaskMonitor(200, 200,
-                new int[]{33, 66, 50, 50, 50, 150, 133, 166, 150, 250, 250, 250, 250, 300, 50, 250, 50, 300, 50, 250, 150, 250, 250},
-                new int[]{66, 33, 50, 150, 250, 50, 166, 133, 250, 300, 50, 50, 150, 250, 50, 150, 150, 250, 250, 50, 250, 150, 350});
-        boolean[] expectedFailoverActive = new boolean[]
-                {false, false, false, false, false, false, false, false, false, false, true, true, true, true, false, true, false, true, false, true, false, true, false};
+                new int[]{
+                        33, 66, 50, 50, 50, 150, 133, 166, 150, 250, 250, 250,
+                        250, 300, 50, 250, 50, 300, 50, 250, 150, 250, 250},
+                new int[]{
+                        66, 33, 50, 150, 250, 50, 166, 133, 250, 300, 50, 50,
+                        150, 250, 50, 150, 150, 250, 250, 50, 250, 150, 350});
+        boolean[] expectedFailoverActive = new boolean[]{
+                false, false, false, false, false, false, false, false, false, false, true,
+                true, true, true, false, true, false, true, false, true, false, true, false};
         boolean[] actualFailoverActive = new boolean[expectedFailoverActive.length];
 
         // when:
@@ -115,29 +130,37 @@ public class SqlTimeBasedTimerTaskMonitorTest {
         }
     }
 
-    private SqlTimeBasedTimerTaskMonitor createSqlTimeBasedTimerTaskMonitorExecutingRunMethodForGivenTimeMillis(final int runMethodExecutionTimeMillis, final float[] runMethodExecutionCount) throws SQLException, ConnException, InterruptedException, Hades.NoMonitorException, UnknownHostException {
-        Hades hadesMock = mock(Hades.class);
-        when(hadesMock.getDsName(eq(true), anyBoolean())).thenReturn("FAILOVER_DB");
-        when(hadesMock.getDsName(eq(false), anyBoolean())).thenReturn("MAIN_DB    ");
+    private SqlTimeBasedTimerTaskMonitor createSqlTimeBasedTimerTaskMonitorExecutingRunMethodForGivenTimeMillis(
+            final int runMethodExecutionTimeMillis,
+            final float[] runMethodExecutionCount)
+            throws SQLException, ConnException, InterruptedException, Hades.NoMonitorException, UnknownHostException {
+        Hades<SqlTimeBasedMonitorImpl> hades = mock(Hades.class);
+        when(hades.getDsName(eq(true), anyBoolean())).thenReturn("FAILOVER_DB");
+        when(hades.getDsName(eq(false), anyBoolean())).thenReturn("MAIN_DB    ");
 
         RepoJdbcImpl sqlTimeRepoMock = mock(RepoJdbcImpl.class);
-        when(sqlTimeRepoMock.findSqlTimeYoungerThan(anyString(), anyString(), anyString())).thenReturn(null);
-        SqlTimeCalculatorImpl sqlTimeCalculator = new SqlTimeCalculatorImpl(
-                hadesMock,
+        when(sqlTimeRepoMock.findSqlTimeYoungerThan(
+                any(MonitorRunLogPrefix.class),
+                anyString(),
+                anyString())).thenReturn(null);
+        SqlTimeCalculatorImpl calc = new SqlTimeCalculatorImpl(
+                hades,
                 sqlTimeRepoMock,
                 // one thread to be sure that main and failover sql times are measured sequentially:
                 Executors.newFixedThreadPool(1)
         );
 
-        SqlTimeBasedTimerTaskMonitor monitor = new SqlTimeBasedTimerTaskMonitor(hadesMock, 100, 50, 1, true, true, sqlTimeCalculator, 1, 1, 1, "localhost");
+        Repo repo = createSqlTimeRepoMock();
+        SqlTimeBasedTimerTaskMonitor monitor =
+                new SqlTimeBasedTimerTaskMonitor(hades, 100, 50, 1, true, true, calc, 1, 1, 1, repo);
 
         Connection connectionMock = mock(Connection.class);
         PreparedStatement statementMock = mock(PreparedStatement.class);
-        when(hadesMock.getConnection(anyString(), anyBoolean())).thenReturn(connectionMock);
-        when(hadesMock.getFailoverDsName()).thenReturn("FAILOVER_DS");
-        when(hadesMock.getMainDsName()).thenReturn("MAIN_DS");
-        when(hadesMock.getFailoverDataSourcePinned()).thenReturn(null);
-        when(hadesMock.getMonitor()).thenReturn(monitor);
+        when(hades.getConnection(any(MonitorRunLogPrefix.class), anyBoolean())).thenReturn(connectionMock);
+        when(hades.getFailoverDsName()).thenReturn("FAILOVER_DS");
+        when(hades.getMainDsName()).thenReturn("MAIN_DS");
+        when(hades.getFailoverDataSourcePinned()).thenReturn(null);
+//        when(hades.getMonitor()).thenReturn(monitor);
         when(connectionMock.prepareStatement(anyString())).thenReturn(statementMock);
         when(statementMock.execute()).thenAnswer(new Answer() {
             public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
@@ -157,11 +180,17 @@ public class SqlTimeBasedTimerTaskMonitorTest {
                                                                             final int[] mainDbExecutionTimesMillis,
                                                                             final int[] failoverDbExecutionTimesMillis)
             throws SQLException, InterruptedException, UnknownHostException {
-        Hades<SqlTimeBasedMonitorImpl> hades = new Hades<SqlTimeBasedMonitorImpl>(createDsMock(mainDbExecutionTimesMillis), createDsMock(failoverDbExecutionTimesMillis), "MAIN_DS", "FAILOVER_DS");
+        Hades<SqlTimeBasedMonitorImpl> hades = new Hades<SqlTimeBasedMonitorImpl>(
+                createDsMock(mainDbExecutionTimesMillis),
+                createDsMock(failoverDbExecutionTimesMillis),
+                "MAIN_DS",
+                "FAILOVER_DS");
 
-        SqlTimeCalculatorImpl sqlTimeCalculator = new SqlTimeCalculatorImpl(hades, createSqlTimeRepoMock(), null);
+        Repo repo = createSqlTimeRepoMock();
+        SqlTimeCalculatorImpl sqlTimeCalculator = new SqlTimeCalculatorImpl(hades, repo, null);
 
-        SqlTimeBasedTimerTaskMonitor monitor = new SqlTimeBasedTimerTaskMonitor(hades,
+        SqlTimeBasedTimerTaskMonitor monitor = new SqlTimeBasedTimerTaskMonitor(
+                hades,
                 sqlExecTimeTriggeringFailoverMillis,
                 sqlExecTimeTriggeringFailbackMillis,
                 1,
@@ -171,7 +200,7 @@ public class SqlTimeBasedTimerTaskMonitorTest {
                 1,
                 1,
                 1,
-                "localhost");
+                repo);
 
         monitor.init();
 
@@ -179,15 +208,28 @@ public class SqlTimeBasedTimerTaskMonitorTest {
     }
 
     public static Repo createSqlTimeRepoMock() throws InterruptedException {
-        Repo sqlTimeRepoMock = mock(RepoJdbcImpl.class);
-        when(sqlTimeRepoMock.findSqlTimeYoungerThan(anyString(), anyString(), anyString())).thenReturn(null);
-        when(sqlTimeRepoMock.storeSqlTime(anyString(), anyString(), anyLong(), anyString())).thenAnswer(new Answer<Long>() {
+        Repo repo = mock(RepoJdbcImpl.class);
+        when(repo.findSqlTimeYoungerThan(any(MonitorRunLogPrefix.class), anyString(), anyString())).thenReturn(null);
+        when(repo.getHost()).thenReturn("localhost");
+        when(repo.getRepoId()).thenReturn("repo1");
+        final int indexOfSqlTimeToStoreParameter = 3;
+        when(repo.storeSqlTime(
+                any(MonitorRunLogPrefix.class),
+                any(Hades.class),
+                anyString(),
+                anyLong(),
+                anyString())).thenAnswer(new Answer<Long>() {
             public Long answer(InvocationOnMock invocationOnMock) throws Throwable {
-                return (Long) invocationOnMock.getArguments()[2];
+                return (Long) invocationOnMock.getArguments()[indexOfSqlTimeToStoreParameter];
             }
         });
-        when(sqlTimeRepoMock.storeException(anyString(), anyString(), any(Exception.class), anyString())).thenCallRealMethod();
-        return sqlTimeRepoMock;
+        when(repo.storeException(
+                any(MonitorRunLogPrefix.class),
+                any(Hades.class),
+                anyString(),
+                any(Exception.class),
+                anyString())).thenCallRealMethod();
+        return repo;
     }
 
     private DataSource createDsMock(final int[] executionTimesMillis) throws SQLException {

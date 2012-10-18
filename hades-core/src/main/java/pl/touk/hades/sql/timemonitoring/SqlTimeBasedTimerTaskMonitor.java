@@ -24,8 +24,6 @@ import pl.touk.hades.load.Load;
 import java.net.UnknownHostException;
 import java.util.*;
 
-import static pl.touk.hades.Utils.indent;
-
 /**
 * Monitor that is a {@link TimerTask} and uses {@link SqlTimeBasedMonitorImpl} to measure load of the associated hades.
 *
@@ -49,7 +47,7 @@ public final class SqlTimeBasedTimerTaskMonitor extends TimerTask implements Sql
                                         int currentToUnusedRatio,
                                         int backOffMultiplier,
                                         int backOffMaxRatio,
-                                        String host)
+                                        Repo repo)
             throws UnknownHostException {
 
         monitor = new SqlTimeBasedMonitorImpl(
@@ -63,7 +61,8 @@ public final class SqlTimeBasedTimerTaskMonitor extends TimerTask implements Sql
                 currentToUnusedRatio,
                 backOffMultiplier,
                 backOffMaxRatio,
-                host);
+                repo.getHost(),
+                repo.getRepoId());
     }
 
     public void init() {
@@ -71,12 +70,13 @@ public final class SqlTimeBasedTimerTaskMonitor extends TimerTask implements Sql
     }
 
     public void run() {
-        String logPrefix = "[" + getHades() + ", scheduledExecTime=" + Utils.tf.format(new Date(scheduledExecutionTime())) + "] ";
+        MonitorRunLogPrefix logPrefix = new MonitorRunLogPrefix(
+                getHades() + ", scheduledExecTime=" + Utils.tf.format(new Date(scheduledExecutionTime())));
         logger.info(logPrefix + "TimerTask started");
         try {
             if (!lastExecutionDelayedThisExecutionOfTimerTask(logPrefix)) {
                 try {
-                    monitor.run(indent(logPrefix));
+                    monitor.run(logPrefix.indent());
                 } finally {
                     ensureThatExecutionsDelayedByThisTimerTaskExecutionAreAbandoned();
                 }
@@ -88,12 +88,12 @@ public final class SqlTimeBasedTimerTaskMonitor extends TimerTask implements Sql
         }
     }
 
-    private boolean lastExecutionDelayedThisExecutionOfTimerTask(String curRunLogPrefix) {
+    private boolean lastExecutionDelayedThisExecutionOfTimerTask(MonitorRunLogPrefix logPrefix) {
         long scheduledExecutionTime = scheduledExecutionTime();
         if (scheduledExecutionTime > 0) {
             long endOfLastRunMethodCopy = endOfLastRunMethod;
             if (scheduledExecutionTime < endOfLastRunMethodCopy) {
-                logger.warn(curRunLogPrefix + "last execution ended at " + Utils.format(new Date(endOfLastRunMethodCopy)) +
+                logger.warn(logPrefix + "last execution ended at " + Utils.format(new Date(endOfLastRunMethodCopy)) +
                         " which is after this execution's scheduled time: " + Utils.format(new Date(scheduledExecutionTime)) +
                         "; therefore this execution is abandoned");
                 return true;

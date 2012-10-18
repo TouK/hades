@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pl.touk.hades.sql.exception.ConnException;
+import pl.touk.hades.sql.timemonitoring.MonitorRunLogPrefix;
 
 /**
  * A data source which offers high-availability (HA) by enclosing two real data sources - the main one and the failover
@@ -90,6 +91,8 @@ public class Hades<M extends Monitor> implements DataSource, HadesMBean {
     private final static Logger logger = LoggerFactory.getLogger(Hades.class);
 
     private final static String errorMsg = "this class wraps two data sources so this method is irrelevant as it does not give the possbility to specify which data source should it operate on";
+
+    private final static MonitorRunLogPrefix emptyLogPrefix = new MonitorRunLogPrefix();
 
     private final static int notPinned = 0;
     private final static int mainPinned = 1;
@@ -159,7 +162,7 @@ public class Hades<M extends Monitor> implements DataSource, HadesMBean {
      * @throws SQLException if getting a connection from one of the two enclosed data sources throws an exception
      */
     public Connection getConnection() throws SQLException, RuntimeException {
-        return getConnection("", failoverEffectivelyActive(), false, null, null, true);
+        return getConnection(emptyLogPrefix, failoverEffectivelyActive(), false, null, null, true);
     }
 
     /**
@@ -180,12 +183,14 @@ public class Hades<M extends Monitor> implements DataSource, HadesMBean {
      * @throws SQLException if getting a connection from one of the two enclosed data sources throws an exception
      */
     public Connection getConnection(String username, String password) throws SQLException, RuntimeException {
-        return getConnection("", failoverEffectivelyActive(), true, username, password, true);
+        return getConnection(emptyLogPrefix, failoverEffectivelyActive(), true, username, password, true);
     }
 
     /**
-     * Delegates to {@link #getConnection(String, boolean, boolean, String, String, boolean)} simply surrounding possible
-     * thrown exceptions by {@link pl.touk.hades.sql.exception.ConnException}.
+     * Delegates to {@link #getConnection(
+     * pl.touk.hades.sql.timemonitoring.MonitorRunLogPrefix, boolean, boolean, String, String, boolean)}
+     * simply surrounding possible thrown exceptions by {@link pl.touk.hades.sql.exception.ConnException}.
+     *
      *
      *
      * @param logPrefix text used as a log prefix
@@ -193,7 +198,7 @@ public class Hades<M extends Monitor> implements DataSource, HadesMBean {
      * @return connection from the specified data source
      * @throws pl.touk.hades.sql.exception.ConnException if the specified data source throws the runtime exception
      */
-    public Connection getConnection(String logPrefix, boolean failover) throws ConnException {
+    public Connection getConnection(MonitorRunLogPrefix logPrefix, boolean failover) throws ConnException {
         try {
             return getConnection(logPrefix, failover, false, null, null, false);
         } catch (Exception e) {
@@ -203,7 +208,8 @@ public class Hades<M extends Monitor> implements DataSource, HadesMBean {
 
     /**
      * Delegates to {@link javax.sql.DataSource#getConnection() getConnection()} (if <code>withAuth</code> is
-     * <code>false</code>) or to {@link javax.sql.DataSource#getConnection(String, String) getConnection(username, password)}
+     * <code>false</code>) or to
+     * {@link javax.sql.DataSource#getConnection(String, String) getConnection(username, password)}
      * (if <code>withAuth</code> is <code>true</code>). The time of the above invocation is measured and logged in
      * debug mode (the log is prefixed with <code>logPrefix</code> parameter) or error mode if the invocation ends
      * with an exception.
@@ -213,17 +219,21 @@ public class Hades<M extends Monitor> implements DataSource, HadesMBean {
      *
      *
      *
+     *
      * @param logPrefix text used as a log prefix
      * @param failover whether to return a connection from the failover data source or from the main data source
-     * @param withAuth whether to delegate to {@link javax.sql.DataSource#getConnection(String, String)} or to {@link javax.sql.DataSource#getConnection()}
-     * @param username username for which the connection should be returned (ignored if <code>withAuth</code> is <code>false</code>)
-     * @param password password for the given <code>username</code> (ignored if <code>withAuth</code> is <code>false</code>)
+     * @param withAuth whether to delegate to {@link javax.sql.DataSource#getConnection(String, String)} or to
+     *                 {@link javax.sql.DataSource#getConnection()}
+     * @param username username for which the connection should be returned (ignored if <code>withAuth</code> is
+     *                 <code>false</code>)
+     * @param password password for the given <code>username</code> (ignored if <code>withAuth</code> is
+     *                 <code>false</code>)
      * @param informMonitor d
      * @return connection from the specified data source
      * @throws SQLException if the specified data source throws the exception
      * @throws RuntimeException if the specified data source throws the runtime exception
      */
-    private Connection getConnection(String logPrefix,
+    private Connection getConnection(MonitorRunLogPrefix logPrefix,
                                      boolean failover,
                                      boolean withAuth,
                                      String username,
@@ -252,19 +262,28 @@ public class Hades<M extends Monitor> implements DataSource, HadesMBean {
             try {
                 connection.close();
             } catch (SQLException e1) {
-                logger.error(logPrefix + "successfully got" + connDesc(withAuth, username, failover) + "but unexpected exception occurred (logged below); after that an attempt to close the connection resulted in another exception", e1);
+                logger.error(logPrefix + "successfully got" + connDesc(withAuth, username, failover) +
+                        "but unexpected exception occurred (logged below); " +
+                        "after that an attempt to close the connection resulted in another exception", e1);
             } finally {
-                logger.error(logPrefix + "successfully got" + connDesc(withAuth, username, failover) + "but unexpected exception occurred", e);
+                logger.error(logPrefix + "successfully got" + connDesc(withAuth, username, failover) +
+                        "but unexpected exception occurred", e);
             }
             throw e;
         }
     }
 
     private String connDesc(boolean withAuth, String username, boolean failover) {
-        return  " a connection" + (withAuth ? " for username " + username : "") + " to " + (failover ? failoverDsName + " (failover" : mainDsName + " (main") + " ds) ";
+        return  " a connection" + (withAuth ? " for username " + username : "") +
+                " to " + (failover ? failoverDsName + " (failover" : mainDsName + " (main") + " ds) ";
     }
 
-    private <T extends Throwable> T handleException(String logPrefix, T e, long start, String connDesc, boolean failover, boolean informMonitor) throws T {
+    private <T extends Throwable> T handleException(MonitorRunLogPrefix logPrefix,
+                                                    T e,
+                                                    long start,
+                                                    String connDesc,
+                                                    boolean failover,
+                                                    boolean informMonitor) throws T {
         long timeElapsedNanos = System.nanoTime() - start;
         if (informMonitor) {
             connectionRequested(false, failover, timeElapsedNanos);

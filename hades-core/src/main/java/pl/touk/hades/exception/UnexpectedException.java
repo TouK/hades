@@ -15,19 +15,21 @@
  */
 package pl.touk.hades.exception;
 
+import pl.touk.hades.sql.timemonitoring.MonitorRunLogPrefix;
+
 /**
  * @author <a href="mailto:msk@touk.pl">Michał Sokołowski</a>
  */
 public class UnexpectedException extends LoadMeasuringException {
-    public UnexpectedException(String logPrefix, Throwable e) {
+    public UnexpectedException(MonitorRunLogPrefix logPrefix, Throwable e) {
         super(logPrefix, e);
     }
 
-    public UnexpectedException(String message, RuntimeException e) {
+    public UnexpectedException(MonitorRunLogPrefix message, RuntimeException e) {
         super(message, e);
     }
 
-    public UnexpectedException(String logPrefix) {
+    public UnexpectedException(MonitorRunLogPrefix logPrefix) {
         super(logPrefix);
     }
 }

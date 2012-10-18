@@ -20,8 +20,6 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.io.Serializable;
 
-import static pl.touk.hades.Utils.indent;
-
 /**
  * @author <a href="mailto:msk@touk.pl">Michał Sokołowski</a>
  */
@@ -40,7 +38,13 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
 
     private final Repo repo;
 
-    public SqlTimeCalculatorImpl(Hades hades, int connTimeoutMillis, ExecutorService externalExecutor, Repo repo, String sql, int sqlExecTimeout, int sqlExecTimeoutForcingPeriodMillis) {
+    public SqlTimeCalculatorImpl(Hades hades,
+                                 int connTimeoutMillis,
+                                 ExecutorService externalExecutor,
+                                 Repo repo,
+                                 String sql,
+                                 int sqlExecTimeout,
+                                 int sqlExecTimeoutForcingPeriodMillis) {
         Utils.assertNotNull(hades, "hades");
         Utils.assertNonNegative(sqlExecTimeout, "sqlExecTimeout");
         Utils.assertNonNegative(sqlExecTimeoutForcingPeriodMillis, "sqlExecTimeoutForcingPeriodMillis");
@@ -65,8 +69,10 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
         this.sqlExecTimeoutForcingPeriodMillis = 0;
     }
 
-    public long[] calculateMainAndFailoverSqlTimesNanos(final String logPrefix, final State state) throws InterruptedException {
+    public long[] calculateMainAndFailoverSqlTimesNanos(final MonitorRunLogPrefix logPrefix, final State state)
+            throws InterruptedException {
         logger.debug(logPrefix + "calculateMainAndFailoverSqlTimesNanos");
+        MonitorRunLogPrefix indentedLogPrefix = logPrefix.indent();
         ExecutorService executor = null;
         try {
             if (externalExecutor != null) {
@@ -74,10 +80,15 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
             } else {
                 executor = Executors.newFixedThreadPool(2);
             }
-            List<Future<Long>> futures = executor.invokeAll(Arrays.asList(createCallable(indent(logPrefix), state, false), createCallable(indent(logPrefix), state, true)));
-            return new long[]{extractSqlTime(indent(logPrefix), futures, false), extractSqlTime(indent(logPrefix), futures, true)};
+            List<Future<Long>> futures = executor.invokeAll(Arrays.asList(
+                    createCallable(indentedLogPrefix, state, false),
+                    createCallable(indentedLogPrefix, state, true)));
+            return new long[]{
+                    extractSqlTime(indentedLogPrefix, futures, false),
+                    extractSqlTime(indentedLogPrefix, futures, true)};
         } catch (RuntimeException e) {
-            logger.error(indent(logPrefix) + "unexpected RuntimeException while trying to measure load on main and failover data sources concurrently; assuming that both data sources are unavailable", e);
+            logger.error(indentedLogPrefix + "unexpected RuntimeException while trying to measure load on main and " +
+                    "failover data sources concurrently; assuming that both data sources are unavailable", e);
             return new long[]{ExceptionEnum.unexpectedException.value(), ExceptionEnum.unexpectedException.value()};
         } finally {
             if (externalExecutor == null && executor != null) {
@@ -86,19 +97,23 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
         }
     }
 
-    private Callable<Long> createCallable(final String logPrefix, final State state, final boolean failover) {
+    private Callable<Long> createCallable(final MonitorRunLogPrefix logPrefix,
+                                          final State state,
+                                          final boolean failover) {
         return new Callable<Long>() {
             public Long call() throws Exception {
-                return calculateSqlTimeNanos(logPrefix + hades.getDsName(failover, true) + ": ", state, failover);
+                return calculateSqlTimeNanos(logPrefix.append(hades.getDsName(failover, true) + ": "), state, failover);
             }
         };
     }
 
-    private long extractSqlTime(String logPrefix, List<Future<Long>> futures, boolean failover) throws InterruptedException {
+    private long extractSqlTime(MonitorRunLogPrefix logPrefix, List<Future<Long>> futures, boolean failover)
+            throws InterruptedException {
         try {
             return futures.get(failover ? 1 : 0).get();
         } catch (ExecutionException e) {
-            logger.error(logPrefix + "unexpected exception while getting sql time for " + (failover ? "failover" : "main") + " database from java.util.concurrent.Future", e.getCause());
+            logger.error(logPrefix + "unexpected exception while getting sql time for " +
+                    (failover ? "failover" : "main") + " database from java.util.concurrent.Future", e.getCause());
             return ExceptionEnum.unexpectedException.value();
         } catch (InterruptedException e) {
             futures.get(0).cancel(true);
@@ -107,9 +122,10 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
         }
     }
 
-    private long calculateSqlTimeNanos(String logPrefix, State state, boolean failover) throws InterruptedException {
+    private long calculateSqlTimeNanos(MonitorRunLogPrefix logPrefix, State state, boolean failover)
+            throws InterruptedException {
         logger.debug(logPrefix + "calculateSqlTimeNanos");
-        logPrefix = indent(logPrefix);
+        logPrefix = logPrefix.indent();
 
         String dsName = hades.getDsName(failover);
         Long time;
@@ -126,20 +142,27 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
             if (time != null) {
                 return time;
             }
-            preparedStatement = Utils.safelyPrepareStatement(logPrefix, connection, hades.desc(failover), sqlExecTimeout, sql);
-            time = new SafeSqlExecutor(sqlExecTimeout, sqlExecTimeoutForcingPeriodMillis, hades.desc(failover), externalExecutor).execute(logPrefix, preparedStatement, false, sql);
-            return repo.storeSqlTime(logPrefix, dsName, time, sql);
+            preparedStatement =
+                    Utils.safelyPrepareStatement(logPrefix, connection, hades.desc(failover), sqlExecTimeout, sql);
+            time = new SafeSqlExecutor(
+                    sqlExecTimeout,
+                    sqlExecTimeoutForcingPeriodMillis,
+                    hades.desc(failover),
+                    externalExecutor
+            ).execute(logPrefix, preparedStatement, false, sql);
+            return repo.storeSqlTime(logPrefix, hades, dsName, time, sql);
         } catch (LoadMeasuringException e) {
-            return repo.storeException(logPrefix, dsName, e, sql);
+            return repo.storeException(logPrefix, hades, dsName, e, sql);
         } catch (RuntimeException e) {
-            logger.error(logPrefix + "unexpected runtime exception while measuring statement execution time on " + hades.desc(failover), e);
-            return repo.storeException(logPrefix, dsName, e, sql);
+            logger.error(logPrefix + "unexpected runtime exception while measuring statement execution time on " +
+                    hades.desc(failover), e);
+            return repo.storeException(logPrefix, hades, dsName, e, sql);
         } finally {
             close(logPrefix, hades, preparedStatement, connection, failover);
         }
     }
 
-    public Connection getConnection(final boolean failover, final String curRunLogPrefix)
+    public Connection getConnection(final boolean failover, final MonitorRunLogPrefix curRunLogPrefix)
             throws InterruptedException, LoadMeasuringException {
         if (connTimeoutMillis > 0) {
             return new HadesSafeConnectionGetter(
@@ -154,22 +177,27 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
     }
 
     public long estimateMaxExecutionTimeMillisOfCalculationMethod() {
-        return (connTimeoutMillis > 0 ? connTimeoutMillis : 100) + (sqlExecTimeout > 0 ? sqlExecTimeout * 1000 + sqlExecTimeoutForcingPeriodMillis: 1000);
+        return (connTimeoutMillis > 0 ? connTimeoutMillis : 100)
+                + (sqlExecTimeout > 0 ? sqlExecTimeout * 1000 + sqlExecTimeoutForcingPeriodMillis: 1000);
     }
 
-    public void close(String curRunLogPrefix, Hades hades, PreparedStatement ps, Connection c, boolean failover) {
+    public void close(MonitorRunLogPrefix logPrefix,
+                      Hades hades,
+                      PreparedStatement ps,
+                      Connection c,
+                      boolean failover) {
         if (ps != null) {
             try {
                 ps.close();
             } catch (Exception e) {
-                logger.error(curRunLogPrefix + "exception while closing prepared statement for " + hades.desc(failover), e);
+                logger.error(logPrefix + "exception while closing prepared statement for " + hades.desc(failover), e);
             }
         }
         if (c != null) {
             try {
                 c.close();
             } catch (Exception e) {
-                logger.error(curRunLogPrefix + "exception while closing connection to " + hades.desc(failover), e);
+                logger.error(logPrefix + "exception while closing connection to " + hades.desc(failover), e);
             }
         }
     }
@@ -191,15 +219,21 @@ public class SqlTimeCalculatorImpl implements SqlTimeCalculator, Serializable {
     private String getLoadLevels(State state) {
         Load load = state.getMachineState().getLoad();
         return load.getMainDb()     + " - " + hades.getMainDsName() + ", " +
-                load.getFailoverDb() + " - " + hades.getFailoverDsName() +
-                (load.isMainDbLoadHigher() != null ? " (" + hades.getMainDsName() + " load level is" + (load.isMainDbLoadHigher() ? "" : " not") + " higher)" : "");
+               load.getFailoverDb() + " - " + hades.getFailoverDsName() +
+               (load.isMainDbLoadHigher() != null ?
+                       " (" + hades.getMainDsName() + " load level is" +
+                               (load.isMainDbLoadHigher() ? "" : " not") + " higher)" :
+                       "");
     }
 
     private String createTransitionDesc(State oldState, State newState) {
-        boolean failoverOrFailback = newState.getMachineState().isFailoverActive() != oldState.getMachineState().isFailoverActive();
+        boolean failoverOrFailback =
+                newState.getMachineState().isFailoverActive() != oldState.getMachineState().isFailoverActive();
         String dbSwitchType;
         if (failoverOrFailback) {
-            dbSwitchType = newState.getMachineState().isFailoverActive() ? "activating failover (" + hades.getMainDsName() + " -> " + hades.getFailoverDsName() + ")" : "activating failback (" + hades.getFailoverDsName() + " -> " + hades.getMainDsName() + ")";
+            dbSwitchType = newState.getMachineState().isFailoverActive() ?
+                    "activating failover (" + hades.getMainDsName()     + " -> " + hades.getFailoverDsName() + ")" :
+                    "activating failback (" + hades.getFailoverDsName() + " -> " + hades.getMainDsName()     + ")";
         } else {
             if (newState.getMachineState().isFailoverActive()) {
                 dbSwitchType = "failover remains active (keep using " + hades.getFailoverDsName() + ")";

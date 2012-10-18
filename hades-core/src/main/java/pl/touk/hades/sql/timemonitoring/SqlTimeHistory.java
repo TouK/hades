@@ -21,9 +21,9 @@ import java.util.LinkedList;
 import java.io.Serializable;
 
 /**
- * A class that maintains a history (a FIFO list) of last <code>N</code> (<code>N</code> is configurable) times of an sql
- * statement execution. The history can be updated with new execution time in {@link #updateAverage(long)} (this method
- * returns also the new {@link Average} after the update). The way the average is calculated is configured in
+ * A class that maintains a history (a FIFO list) of last <code>N</code> (<code>N</code> is configurable) times of an
+ * sql statement execution. The history can be updated with new execution time in {@link #updateAverage(long)} (this
+ * method returns also the new {@link Average} after the update). The way the average is calculated is configured in
  * constructor {@link #SqlTimeHistory(int, boolean, boolean)}.
  * <p>
  * An execution time of <code>Long.MAX_VALUE</code> is treated specialy by this class. It is called

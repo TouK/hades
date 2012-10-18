@@ -5,16 +5,17 @@
 package pl.touk.hades.sql.exception;
 
 import pl.touk.hades.exception.LoadMeasuringException;
+import pl.touk.hades.sql.timemonitoring.MonitorRunLogPrefix;
 
 /**
  * @author <a href="mailto:msk@touk.pl">Michał Sokołowski</a>
  */
 public class ConnException extends LoadMeasuringException {
-    public ConnException(String logPrefix, Exception e) {
+    public ConnException(MonitorRunLogPrefix logPrefix, Exception e) {
         super(logPrefix, e);
     }
 
-    public ConnException(String logPrefix) {
+    public ConnException(MonitorRunLogPrefix logPrefix) {
         super(logPrefix);
     }
 }

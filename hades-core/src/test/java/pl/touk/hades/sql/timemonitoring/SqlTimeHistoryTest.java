@@ -92,7 +92,7 @@ public class SqlTimeHistoryTest {
         shouldReturnInfinityAsLongAsThereAreInfinitiesIncludedInAverage(false);
     }
 
-    public void shouldReturnInfinityAsLongAsThereAreInfinitiesIncludedInAverage(boolean recoveryErasesHistoryIfInfinitiesNotIncludedInAverageIfRecovered) {
+    private void shouldReturnInfinityAsLongAsThereAreInfinitiesIncludedInAverage(boolean recoveryErasesHistoryIfInfinitiesNotIncludedInAverageIfRecovered) {
         // given:
         SqlTimeHistory calculator;
         long l1 = 10L;

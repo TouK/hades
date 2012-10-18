@@ -22,10 +22,7 @@ import pl.touk.hades.Hades;
 import pl.touk.hades.Utils;
 import pl.touk.hades.load.Load;
 
-import java.net.UnknownHostException;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static pl.touk.hades.Utils.indent;
 
 /**
 * Monitor that activates failover when the main data source
@@ -54,8 +51,8 @@ public class SqlTimeBasedMonitorImpl implements SqlTimeBasedMonitor {
                                    int currentToUnusedRatio,
                                    int backOffMultiplier,
                                    int backOffMaxRatio,
-                                   String host)
-            throws UnknownHostException {
+                                   String host,
+                                   String repoId) {
 
         Utils.assertNotNull(hades, "hades");
         Utils.assertNonNegative(sqlTimeTriggeringFailoverMillis, "sqlTimeTriggeringFailoverMillis");
@@ -70,6 +67,7 @@ public class SqlTimeBasedMonitorImpl implements SqlTimeBasedMonitor {
         this.state = new State(new SqlTimeBasedLoadFactory(Utils.millisToNanos(sqlTimeTriggeringFailoverMillis),
                                                            Utils.millisToNanos(sqlTimeTriggeringFailbackMillis)),
                 host,
+                repoId,
                 sqlTimesIncludedInAverage,
                 exceptionsIgnoredAfterRecovery,
                 recoveryErasesHistoryIfExceptionsIgnoredAfterRecovery,
@@ -85,13 +83,14 @@ public class SqlTimeBasedMonitorImpl implements SqlTimeBasedMonitor {
         connectionListener.set(listener);
     }
 
-    public State run(String logPrefix) {
+    public State run(MonitorRunLogPrefix logPrefix) {
         logger.debug(logPrefix + "run started");
+        logPrefix = logPrefix.indent();
         try {
-            long[] times = calc.calculateMainAndFailoverSqlTimesNanos(indent(logPrefix), getState());
-            return updateState(indent(logPrefix), times[0], times[1]);
+            long[] times = calc.calculateMainAndFailoverSqlTimesNanos(logPrefix, getState());
+            return updateState(logPrefix, times[0], times[1]);
         } catch (InterruptedException e) {
-            logger.info(indent(logPrefix) + "measuring interrupted");
+            logger.info(logPrefix + "measuring interrupted");
             Thread.currentThread().interrupt();
             return getState();
         }
@@ -103,12 +102,18 @@ public class SqlTimeBasedMonitorImpl implements SqlTimeBasedMonitor {
         }
     }
 
-    private State updateState(String logPrefix, long mainDbStmtExecTimeNanos, long failoverDbStmtExecTimeNanos) {
+    private State updateState(MonitorRunLogPrefix logPrefix,
+                              long mainDbStmtExecTimeNanos,
+                              long failoverDbStmtExecTimeNanos) {
         State oldState;
         State newState;
         synchronized (state) {
             oldState = state.clone();
-            state.updateLocalStateWithNewExecTimes(indent(logPrefix), mainDbStmtExecTimeNanos, failoverDbStmtExecTimeNanos, null);
+            state.updateLocalStateWithNewExecTimes(
+                    logPrefix.indent(),
+                    mainDbStmtExecTimeNanos,
+                    failoverDbStmtExecTimeNanos
+            );
             newState = state.clone();
         }
         if (newState.getMachineState().isFailoverActive() != oldState.getMachineState().isFailoverActive()) {
@@ -131,11 +136,13 @@ public class SqlTimeBasedMonitorImpl implements SqlTimeBasedMonitor {
         return nanos;
     }
 
-    private void warnAboutFailbackOrFailover(String curRunLogPrefix, State oldState, State newState) {
+    private void warnAboutFailbackOrFailover(MonitorRunLogPrefix curRunLogPrefix, State oldState, State newState) {
         logger.warn(curRunLogPrefix + calc.getLog(oldState, newState));
     }
 
-    private void infoAboutPreservingFailoverOrFailback(String curRunLogPrefix, State oldState, State newState) {
+    private void infoAboutPreservingFailoverOrFailback(MonitorRunLogPrefix curRunLogPrefix,
+                                                       State oldState,
+                                                       State newState) {
         logger.info(curRunLogPrefix + calc.getLog(oldState, newState));
     }
 
@@ -148,10 +155,15 @@ public class SqlTimeBasedMonitorImpl implements SqlTimeBasedMonitor {
     public String getLoadLog() {
         Boolean failoverDataSourcePinned = hades.getFailoverDataSourcePinned();
         synchronized (state) {
-            boolean failoverEffectivelyActive = failoverDataSourcePinned != null ? failoverDataSourcePinned : state.getMachineState().isFailoverActive();
-            return Utils.nanosToMillisAsStr(state.getAvg().getValue()) + " (" + state.getMachineState().getLoad().getMainDb() + ") - " + hades.getMainDsName() + ", " +
-                   Utils.nanosToMillisAsStr(state.getAvgFailover().getValue()) + " (" + state.getMachineState().getLoad().getFailoverDb() + ") - " + hades.getFailoverDsName() +
-                   ", using " + (failoverEffectivelyActive ? hades.getFailoverDsName() : hades.getMainDsName()) + (failoverDataSourcePinned != null ? " (PINNED)" : "");
+            boolean failoverEffectivelyActive = failoverDataSourcePinned != null ?
+                    failoverDataSourcePinned : state.getMachineState().isFailoverActive();
+            return Utils.nanosToMillisAsStr(state.getAvg().getValue()) + " (" +
+                    state.getMachineState().getLoad().getMainDb() + ") - " + hades.getMainDsName() + ", " +
+                    Utils.nanosToMillisAsStr(state.getAvgFailover().getValue()) + " (" +
+                    state.getMachineState().getLoad().getFailoverDb() + ") - " + hades.getFailoverDsName() + ", " +
+                    "using " +
+                    (failoverEffectivelyActive ? hades.getFailoverDsName() : hades.getMainDsName()) +
+                    (failoverDataSourcePinned != null ? " (PINNED)" : "");
         }
     }
 
@@ -161,11 +173,10 @@ public class SqlTimeBasedMonitorImpl implements SqlTimeBasedMonitor {
         }
     }
 
-    public State setState(String logPrefixIfFullState, State newState) {
+    public State setState(MonitorRunLogPrefix logPrefixIfFullState, State newState) {
         State oldState;
         synchronized (state) {
-            oldState = state.clone();
-            state.copyFrom(logPrefixIfFullState, newState);
+            oldState = state.copyFrom(logPrefixIfFullState, newState);
         }
         return oldState;
     }

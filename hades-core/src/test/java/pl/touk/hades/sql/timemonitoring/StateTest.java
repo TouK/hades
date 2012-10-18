@@ -28,6 +28,8 @@ public class StateTest {
     private final static String initialHost = "initial host";
     private final static String host        = "host";
 
+    private final static MonitorRunLogPrefix emptyLogPrefix = new MonitorRunLogPrefix();
+
     @Test
     public void shouldUpdate() throws InterruptedException {
         // given:
@@ -41,7 +43,7 @@ public class StateTest {
         // when:
         before = System.currentTimeMillis();
         Thread.sleep(1);
-        returnedState = state.updateLocalStateWithNewExecTimes("", high1, medium1, host);
+        returnedState = state.updateLocalStateWithNewExecTimes(emptyLogPrefix, high1, medium1);
         Thread.sleep(1);
         after = System.currentTimeMillis();
 
@@ -49,7 +51,6 @@ public class StateTest {
         assertEquals(returnedState, beforeUpdate);
         assertTrue(returnedState != beforeUpdate);
         assertFalse(beforeUpdate.equals(state));
-        assertEquals(host, state.getHost());
         assertTrue(state.getMachineState().isFailoverActive());
 
         assertEquals(high1, state.getAvg().getValue());
@@ -81,11 +82,11 @@ public class StateTest {
         State s3;
 
         // when:
-        s1.updateLocalStateWithNewExecTimes("", low1, medium1, host);
+        s1.updateLocalStateWithNewExecTimes(emptyLogPrefix, low1, medium1);
         s2 = s1.clone();
-        s2.updateLocalStateWithNewExecTimes("", medium2, State.notMeasuredInThisCycle, host);
+        s2.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium2, State.notMeasuredInThisCycle);
         s3 = s2.clone();
-        s3.updateLocalStateWithNewExecTimes("", high2, high1, host);
+        s3.updateLocalStateWithNewExecTimes(emptyLogPrefix, high2, high1);
 
         // then:
         assertEquals("db is ok and used", s1.getDesc(false));
@@ -140,7 +141,7 @@ public class StateTest {
         State s = createInitialLocalState(periodWhenUnused, 1);
 
         // when:
-        s.updateLocalStateWithNewExecTimes("", low1, low1, null);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, low1, low1);
 
         // then:
         assertTrue(s.sqlTimeIsMeasuredInThisCycle(mainDb));
@@ -158,20 +159,20 @@ public class StateTest {
         State s = createInitialLocalState(4, 1);
 
         // when:
-        s.updateLocalStateWithNewExecTimes("", low1, low1, null);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, low1, low1);
 
         // then:
         assertEquals(false, s.sqlTimeIsMeasuredInThisCycle(true));
 
         // when:
-        s.updateLocalStateWithNewExecTimes("", low1, State.notMeasuredInThisCycle, null);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, low1, State.notMeasuredInThisCycle);
 
         // then:
         assertDecreasedLoadOfFailoverDatabase(s, 2);
         assertEquals(false, s.sqlTimeIsMeasuredInThisCycle(true));
 
         // when:
-        s.updateLocalStateWithNewExecTimes("", low1, State.notMeasuredInThisCycle, null);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, low1, State.notMeasuredInThisCycle);
 
         // then:
         assertDecreasedLoadOfFailoverDatabase(s, 3);
@@ -183,11 +184,11 @@ public class StateTest {
         int periodWhenUnused = 2;
         int backOffMultiplier = 3;
         State s = createInitialLocalState(periodWhenUnused, backOffMultiplier);
-        s.updateLocalStateWithNewExecTimes("", low1, low1, null);
-        s.updateLocalStateWithNewExecTimes("", low1, State.notMeasuredInThisCycle, null);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, low1, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, low1, State.notMeasuredInThisCycle);
 
         // when:
-        s.updateLocalStateWithNewExecTimes("", low1, ExceptionEnum.connException.value(), null);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, low1, ExceptionEnum.connException.value());
 
         // then:
         assertEquals(periodWhenUnused * backOffMultiplier, s.getPeriod(true));
@@ -211,7 +212,7 @@ public class StateTest {
         State s = createInitialLocalState(periodWhenUnused, backOffMultiplier);
 
         // when:
-        s.updateLocalStateWithNewExecTimes("", high1, low1, null);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, high1, low1);
 
         // then:
         assertFalse(s.sqlTimeIsMeasuredInThisCycle(mainDb));
@@ -224,6 +225,17 @@ public class StateTest {
     }
 
     private State createInitialLocalState(int periodWhenUnused, int backOffMultiplier) {
-        return new State(new SqlTimeBasedLoadFactory(failoverThreshold, failbackThreshold), initialHost, 1, false, false, periodWhenUnused, backOffMultiplier, 100, "MAIN_DB    ", "FAILOVER_DB");
+        return new State(
+                new SqlTimeBasedLoadFactory(failoverThreshold, failbackThreshold),
+                initialHost,
+                "repo1",
+                1,
+                false,
+                false,
+                periodWhenUnused,
+                backOffMultiplier,
+                100,
+                "MAIN_DB    ",
+                "FAILOVER_DB");
     }
 }

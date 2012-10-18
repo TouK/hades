@@ -12,8 +12,6 @@ import java.lang.System;
 import java.sql.Connection;
 import java.util.concurrent.ExecutorService;
 
-import static pl.touk.hades.Utils.indent;
-
 /**
  * @author <a href="mailto:msk@touk.pl">Michał Sokołowski</a>
  */
@@ -35,7 +33,14 @@ public class SqlTimeQuartzCalculatorImpl implements SqlTimeQuartzCalculator {
         Utils.assertNotNull(hades, "hades");
         Utils.assertNotNull(repo, "repo");
 
-        this.calc = new SqlTimeCalculatorImpl(hades, connTimeoutMillis, externalExecutor, repo, sql, sqlExecTimeout, sqlExecTimeoutForcingPeriodMillis);
+        this.calc = new SqlTimeCalculatorImpl(
+                hades,
+                connTimeoutMillis,
+                externalExecutor,
+                repo,
+                sql,
+                sqlExecTimeout,
+                sqlExecTimeoutForcingPeriodMillis);
         this.hades = hades;
         this.repo = repo;
     }
@@ -46,7 +51,8 @@ public class SqlTimeQuartzCalculatorImpl implements SqlTimeQuartzCalculator {
         this.repo = null;
     }
 
-    public long[] calculateMainAndFailoverSqlTimesNanos(String logPrefix, State state) throws InterruptedException {
+    public long[] calculateMainAndFailoverSqlTimesNanos(MonitorRunLogPrefix logPrefix, State state)
+            throws InterruptedException {
         return calc.calculateMainAndFailoverSqlTimesNanos(logPrefix, state);
     }
 
@@ -54,9 +60,9 @@ public class SqlTimeQuartzCalculatorImpl implements SqlTimeQuartzCalculator {
         return calc.estimateMaxExecutionTimeMillisOfCalculationMethod();
     }
 
-    public State syncValidate(String logPrefix, State state) throws InterruptedException {
+    public State syncValidate(MonitorRunLogPrefix logPrefix, State state) throws InterruptedException {
         logger.debug(logPrefix + "syncValidate");
-        logPrefix = indent(logPrefix);
+        logPrefix = logPrefix.indent();
 
         boolean failover = state.getMachineState().isFailoverActive();
         Connection c = null;
@@ -65,7 +71,8 @@ public class SqlTimeQuartzCalculatorImpl implements SqlTimeQuartzCalculator {
             logger.debug(logPrefix + "state is valid");
             return state;
         } catch (LoadMeasuringException e) {
-            logger.warn(logPrefix + "borrowed " + state + " is invalid - can't get connection to " + hades.getDsName(failover));
+            logger.warn(logPrefix + "borrowed " + state +
+                    " is invalid - can't get connection to " + hades.getDsName(failover));
         } finally {
             calc.close(logPrefix, hades, null, c, failover);
         }
@@ -75,6 +82,7 @@ public class SqlTimeQuartzCalculatorImpl implements SqlTimeQuartzCalculator {
             logger.warn(logPrefix + "state is invalid but its reverted form perfectly is");
             return new State(
                     state.getHost() + " (reverted by " + repo.getHost() + " while syncing)",
+                    state.getRepoId(),
                     System.currentTimeMillis(),
                     !failover,
                     !failover ? ExceptionEnum.connException.value() : state.getAvg().getLast(),
@@ -83,6 +91,7 @@ public class SqlTimeQuartzCalculatorImpl implements SqlTimeQuartzCalculator {
             logger.warn(logPrefix + "state is invalid and so is its reverted form");
             return new State(
                     state.getHost() + " (no ds could by connected from " + repo.getHost() + " while syncing)",
+                    state.getRepoId(),
                     System.currentTimeMillis(),
                     false,
                     ExceptionEnum.connException.value(),

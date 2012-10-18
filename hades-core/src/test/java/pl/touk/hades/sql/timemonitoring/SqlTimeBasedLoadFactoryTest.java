@@ -9,8 +9,11 @@ import pl.touk.hades.load.LoadLevel;
 import pl.touk.hades.sql.exception.*;
 
 import static pl.touk.hades.load.LoadLevel.*;
+import static pl.touk.hades.sql.timemonitoring.ExceptionEnum.minErroneousValue;
 
 public class SqlTimeBasedLoadFactoryTest {
+
+    private final static MonitorRunLogPrefix emptyLogPrefix = new MonitorRunLogPrefix();
 
     @Test
     public void shouldCreateFactory() {
@@ -32,7 +35,7 @@ public class SqlTimeBasedLoadFactoryTest {
     public void shouldNotAllowErroneousThreshold() {
         String s1 = "failoverThresholdNanos >= minimum erroneous value";
         String s2 = "failbackThresholdNanos >= minimum erroneous value";
-        for(long l = Long.MAX_VALUE; l >= ExceptionEnum.minErroneousValue(); l--) {
+        for(long l = Long.MAX_VALUE; l >= minErroneousValue(); l--) {
             ensureExceptionWhileCreatingFactory(s1, l, 100);
             ensureExceptionWhileCreatingFactory(s1, l, l);
             ensureExceptionWhileCreatingFactory(s2, 100, l);
@@ -56,8 +59,8 @@ public class SqlTimeBasedLoadFactoryTest {
         assertLoad(low, high, null, 4, 2, 2, 6);
         assertLoad(low, high, null, 4, 2, 2, 7);
 
-        assertLoad(low, exceptionWhileMeasuring, null, 4, 2, 1, ExceptionEnum.minErroneousValue());
-        assertLoad(low, exceptionWhileMeasuring, null, 4, 2, 1, ExceptionEnum.minErroneousValue() + 1);
+        assertLoad(low, exceptionWhileMeasuring, null, 4, 2, 1, minErroneousValue());
+        assertLoad(low, exceptionWhileMeasuring, null, 4, 2, 1, minErroneousValue() + 1);
 
         assertLoad(medium, low, null, 4, 2, 3, 2);
         assertLoad(medium, low, null, 4, 2, 4, 1);
@@ -74,8 +77,8 @@ public class SqlTimeBasedLoadFactoryTest {
         assertLoad(medium, high, null, 4, 2, 4, 6);
         assertLoad(medium, high, null, 4, 2, 4, 7);
 
-        assertLoad(medium, exceptionWhileMeasuring, null, 4, 2, 3, ExceptionEnum.minErroneousValue());
-        assertLoad(medium, exceptionWhileMeasuring, null, 4, 2, 3, ExceptionEnum.minErroneousValue() + 1);
+        assertLoad(medium, exceptionWhileMeasuring, null, 4, 2, 3, minErroneousValue());
+        assertLoad(medium, exceptionWhileMeasuring, null, 4, 2, 3, minErroneousValue() + 1);
 
         assertLoad(high, low, null, 4, 2, 6, 2);
         assertLoad(high, low, null, 4, 2, 5, 1);
@@ -92,28 +95,32 @@ public class SqlTimeBasedLoadFactoryTest {
         assertLoad(high, null, false, 4, 2, 6, 6);
         assertLoad(high, null, false, 4, 2, 6, 7);
 
-        assertLoad(high, exceptionWhileMeasuring, null, 4, 2, 5, ExceptionEnum.minErroneousValue());
-        assertLoad(high, exceptionWhileMeasuring, null, 4, 2, 6, ExceptionEnum.minErroneousValue() + 1);
+        assertLoad(high, exceptionWhileMeasuring, null, 4, 2, 5, minErroneousValue());
+        assertLoad(high, exceptionWhileMeasuring, null, 4, 2, 6, minErroneousValue() + 1);
 
-        assertLoad(exceptionWhileMeasuring, low, null, 4, 2, ExceptionEnum.minErroneousValue() + 1, 2);
-        assertLoad(exceptionWhileMeasuring, low, null, 4, 2, ExceptionEnum.minErroneousValue(), 1);
-        assertLoad(exceptionWhileMeasuring, low, null, 4, 2, ExceptionEnum.minErroneousValue(), 1);
-        assertLoad(exceptionWhileMeasuring, low, null, 4, 2, ExceptionEnum.minErroneousValue() + 1, 2);
+        assertLoad(exceptionWhileMeasuring, low, null, 4, 2, minErroneousValue() + 1, 2);
+        assertLoad(exceptionWhileMeasuring, low, null, 4, 2, minErroneousValue(), 1);
+        assertLoad(exceptionWhileMeasuring, low, null, 4, 2, minErroneousValue(), 1);
+        assertLoad(exceptionWhileMeasuring, low, null, 4, 2, minErroneousValue() + 1, 2);
 
-        assertLoad(exceptionWhileMeasuring, medium, null, 4, 2, ExceptionEnum.minErroneousValue(), 4);
-        assertLoad(exceptionWhileMeasuring, medium, null, 4, 2, ExceptionEnum.minErroneousValue() + 1, 3);
-        assertLoad(exceptionWhileMeasuring, medium, null, 4, 2, ExceptionEnum.minErroneousValue(), 3);
-        assertLoad(exceptionWhileMeasuring, medium, null, 4, 2, ExceptionEnum.minErroneousValue() + 1, 4);
+        assertLoad(exceptionWhileMeasuring, medium, null, 4, 2, minErroneousValue(), 4);
+        assertLoad(exceptionWhileMeasuring, medium, null, 4, 2, minErroneousValue() + 1, 3);
+        assertLoad(exceptionWhileMeasuring, medium, null, 4, 2, minErroneousValue(), 3);
+        assertLoad(exceptionWhileMeasuring, medium, null, 4, 2, minErroneousValue() + 1, 4);
 
-        assertLoad(exceptionWhileMeasuring, high, null, 4, 2, ExceptionEnum.minErroneousValue(), 5);
-        assertLoad(exceptionWhileMeasuring, high, null, 4, 2, ExceptionEnum.minErroneousValue() + 1, 5);
-        assertLoad(exceptionWhileMeasuring, high, null, 4, 2, ExceptionEnum.minErroneousValue() + 1, 6);
-        assertLoad(exceptionWhileMeasuring, high, null, 4, 2, ExceptionEnum.minErroneousValue() + 1, 7);
+        assertLoad(exceptionWhileMeasuring, high, null, 4, 2, minErroneousValue(), 5);
+        assertLoad(exceptionWhileMeasuring, high, null, 4, 2, minErroneousValue() + 1, 5);
+        assertLoad(exceptionWhileMeasuring, high, null, 4, 2, minErroneousValue() + 1, 6);
+        assertLoad(exceptionWhileMeasuring, high, null, 4, 2, minErroneousValue() + 1, 7);
 
-        assertLoad(exceptionWhileMeasuring, exceptionWhileMeasuring, false, 4, 2, ExceptionEnum.minErroneousValue(), ExceptionEnum.minErroneousValue());
-        assertLoad(exceptionWhileMeasuring, exceptionWhileMeasuring, false, 4, 2, ExceptionEnum.minErroneousValue() + 1, ExceptionEnum.minErroneousValue() + 1);
-        assertLoad(exceptionWhileMeasuring, exceptionWhileMeasuring, true, 4, 2, ExceptionEnum.minErroneousValue() + 2, ExceptionEnum.minErroneousValue() + 1);
-        assertLoad(exceptionWhileMeasuring, exceptionWhileMeasuring, false, 4, 2, ExceptionEnum.minErroneousValue() + 2, ExceptionEnum.minErroneousValue() + 3);
+        assertLoad(exceptionWhileMeasuring, exceptionWhileMeasuring,
+                false, 4, 2, minErroneousValue(), minErroneousValue());
+        assertLoad(exceptionWhileMeasuring, exceptionWhileMeasuring,
+                false, 4, 2, minErroneousValue() + 1, minErroneousValue() + 1);
+        assertLoad(exceptionWhileMeasuring, exceptionWhileMeasuring,
+                true,  4, 2, minErroneousValue() + 2, minErroneousValue() + 1);
+        assertLoad(exceptionWhileMeasuring, exceptionWhileMeasuring,
+                false, 4, 2, minErroneousValue() + 2, minErroneousValue() + 3);
     }
 
     @Test
@@ -122,30 +129,44 @@ public class SqlTimeBasedLoadFactoryTest {
         shouldReturnExceptionWhileMeasuringForLoadMeasuringException(false);
     }
 
-    private void shouldReturnExceptionWhileMeasuringForLoadMeasuringException(boolean failover) throws Exception {
-        assertException(failover, new LoadMeasuringException(""));
-        assertException(failover, new ConnException(""));
-        assertException(failover, new ConnTimeout(""));
-        assertException(failover, new PrepareStmtException(""));
-        assertException(failover, new SqlExecException(""));
-        assertException(failover, new SqlExecTimeout(""));
-        assertException(failover, new SqlExecTimeoutSettingException(""));
-        assertException(failover, new UnexpectedException(""));
+    private void shouldReturnExceptionWhileMeasuringForLoadMeasuringException(boolean failover) {
+        assertException(failover, new LoadMeasuringException(emptyLogPrefix));
+        assertException(failover, new ConnException(emptyLogPrefix));
+        assertException(failover, new ConnTimeout(emptyLogPrefix));
+        assertException(failover, new PrepareStmtException(emptyLogPrefix));
+        assertException(failover, new SqlExecException(emptyLogPrefix));
+        assertException(failover, new SqlExecTimeout(emptyLogPrefix));
+        assertException(failover, new SqlExecTimeoutSettingException(emptyLogPrefix));
+        assertException(failover, new UnexpectedException(emptyLogPrefix));
     }
 
     private void assertException(boolean failover, LoadMeasuringException e) {
         if (failover) {
-            Assert.assertEquals(exceptionWhileMeasuring, new SqlTimeBasedLoadFactory(2, 1).getLoad(1, ExceptionEnum.valueForException(e)).getFailoverDb());
+            Assert.assertEquals(
+                    exceptionWhileMeasuring,
+                    new SqlTimeBasedLoadFactory(2, 1).getLoad(1, ExceptionEnum.valueForException(e)).getFailoverDb());
         } else {
-            Assert.assertEquals(exceptionWhileMeasuring, new SqlTimeBasedLoadFactory(2, 1).getLoad(ExceptionEnum.valueForException(e), 1).getMainDb());
+            Assert.assertEquals(
+                    exceptionWhileMeasuring,
+                    new SqlTimeBasedLoadFactory(2, 1).getLoad(ExceptionEnum.valueForException(e), 1).getMainDb());
         }
     }
 
-    private void assertLoad(LoadLevel l1, LoadLevel l2, Boolean mainHigher, long failoverThreshold, long failbackThreshold, long main, long failover) {
+    private void assertLoad(LoadLevel l1,
+                            LoadLevel l2,
+                            Boolean mainHigher,
+                            long failoverThreshold,
+                            long failbackThreshold,
+                            long main,
+                            long failover) {
         if (mainHigher != null) {
-            Assert.assertEquals(new Load(l1, mainHigher), new SqlTimeBasedLoadFactory(failoverThreshold, failbackThreshold).getLoad(main, failover));
+            Assert.assertEquals(
+                    new Load(l1, mainHigher),
+                    new SqlTimeBasedLoadFactory(failoverThreshold, failbackThreshold).getLoad(main, failover));
         } else {
-            Assert.assertEquals(new Load(l1, l2), new SqlTimeBasedLoadFactory(failoverThreshold, failbackThreshold).getLoad(main, failover));
+            Assert.assertEquals(
+                    new Load(l1, l2),
+                    new SqlTimeBasedLoadFactory(failoverThreshold, failbackThreshold).getLoad(main, failover));
         }
     }
 
@@ -158,7 +179,9 @@ public class SqlTimeBasedLoadFactoryTest {
         try {
             new SqlTimeBasedLoadFactory(failoverThreshold, failbackThreshold);
         } catch (IllegalArgumentException e) {
-            Assert.assertTrue("'" + e.getMessage() + "' does not contain '" + infix + "'", e.getMessage().contains(infix));
+            Assert.assertTrue(
+                    "'" + e.getMessage() + "' does not contain '" + infix + "'",
+                    e.getMessage().contains(infix));
         }
     }
 }

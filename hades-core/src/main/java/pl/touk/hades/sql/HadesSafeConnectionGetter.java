@@ -6,6 +6,7 @@ package pl.touk.hades.sql;
 
 import pl.touk.hades.Hades;
 import pl.touk.hades.sql.exception.ConnException;
+import pl.touk.hades.sql.timemonitoring.MonitorRunLogPrefix;
 
 import java.sql.Connection;
 import java.util.concurrent.ExecutorService;
@@ -28,7 +29,7 @@ public class HadesSafeConnectionGetter extends SafeConnectionGetter {
     }
 
     @Override
-    protected Connection getConnection(String logPrefix) throws ConnException {
+    protected Connection getConnection(MonitorRunLogPrefix logPrefix) throws ConnException {
         return hades.getConnection(logPrefix, failover);
     }
 }

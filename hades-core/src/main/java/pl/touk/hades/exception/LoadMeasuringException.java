@@ -15,27 +15,29 @@
  */
 package pl.touk.hades.exception;
 
+import pl.touk.hades.sql.timemonitoring.MonitorRunLogPrefix;
+
 /**
  * @author <a href="mailto:msk@touk.pl">Michał Sokołowski</a>
  */
 public class LoadMeasuringException extends Exception {
 
-    private String logPrefix;
+    private MonitorRunLogPrefix logPrefix;
 
-    public LoadMeasuringException(String logPrefix, Throwable e) {
+    public LoadMeasuringException(MonitorRunLogPrefix logPrefix, Throwable e) {
         super(e);
         this.logPrefix = logPrefix;
     }
 
-    public LoadMeasuringException(String logPrefix) {
+    public LoadMeasuringException(MonitorRunLogPrefix logPrefix) {
         this.logPrefix = logPrefix;
     }
 
     public String getLogPrefix() {
-        return logPrefix;
+        return logPrefix.toString();
     }
 
-    public void setLogPrefix(String logPrefix) {
+    public void setLogPrefix(MonitorRunLogPrefix logPrefix) {
         this.logPrefix = logPrefix;
     }
 }

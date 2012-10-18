@@ -8,5 +8,5 @@ import java.lang.String;
  */
 public interface SqlTimeQuartzCalculator extends SqlTimeCalculator {
 
-    State syncValidate(String curSyncLogPrefix, State state) throws InterruptedException;
+    State syncValidate(MonitorRunLogPrefix logPrefix, State state) throws InterruptedException;
 }

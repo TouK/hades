@@ -16,16 +16,17 @@
 package pl.touk.hades.sql.exception;
 
 import pl.touk.hades.exception.LoadMeasuringException;
+import pl.touk.hades.sql.timemonitoring.MonitorRunLogPrefix;
 
 /**
  * @author <a href="mailto:msk@touk.pl">Michał Sokołowski</a>
  */
 public class SqlExecException extends LoadMeasuringException {
-    public SqlExecException(String logPrefix, Exception cause) {
+    public SqlExecException(MonitorRunLogPrefix logPrefix, Exception cause) {
         super(logPrefix, cause);
     }
 
-    public SqlExecException(String logPrefix) {
+    public SqlExecException(MonitorRunLogPrefix logPrefix) {
         super(logPrefix);
     }
 }

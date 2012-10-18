@@ -6,6 +6,7 @@ import pl.touk.hades.Utils;
 import pl.touk.hades.exception.UnexpectedException;
 import pl.touk.hades.sql.exception.SqlExecException;
 import pl.touk.hades.sql.exception.SqlExecTimeout;
+import pl.touk.hades.sql.timemonitoring.MonitorRunLogPrefix;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -40,7 +41,7 @@ public class SafeSqlExecutor {
         this.externalExecutor = externalExecutor;
     }
 
-    public long execute(String logPrefix, PreparedStatement preparedStatement, boolean update, String sql) throws InterruptedException, SqlExecException, UnexpectedException, SqlExecTimeout {
+    public long execute(MonitorRunLogPrefix logPrefix, PreparedStatement preparedStatement, boolean update, String sql) throws InterruptedException, SqlExecException, UnexpectedException, SqlExecTimeout {
         long timeNanos;
         if (sqlExecTimeout > 0) {
             timeNanos = executeWithTimeout(logPrefix, preparedStatement, update, sql);
@@ -51,7 +52,7 @@ public class SafeSqlExecutor {
         return timeNanos;
     }
 
-    private long executeWithoutTimeout(String logPrefix, PreparedStatement preparedStatement, boolean update, String sql) throws SqlExecException, UnexpectedException {
+    private long executeWithoutTimeout(MonitorRunLogPrefix logPrefix, PreparedStatement preparedStatement, boolean update, String sql) throws SqlExecException, UnexpectedException {
         long start = System.nanoTime();
         try {
             if (update) {
@@ -68,13 +69,13 @@ public class SafeSqlExecutor {
         }
     }
 
-    private <T extends Exception> T handleException(String curRunLogPrefix, long start, T e) {
+    private <T extends Exception> T handleException(MonitorRunLogPrefix curRunLogPrefix, long start, T e) {
         long duration = System.nanoTime() - start;
         logger.error(curRunLogPrefix + "exception while executing statement on " + dsDesc + " caught in " + Utils.nanosToMillisAsStr(duration) + " ms", e);
         return e;
     }
 
-    private long executeWithTimeout(final String logPrefix, final PreparedStatement preparedStatement, final boolean update, final String sql) throws InterruptedException, UnexpectedException, SqlExecException, SqlExecTimeout {
+    private long executeWithTimeout(final MonitorRunLogPrefix logPrefix, final PreparedStatement preparedStatement, final boolean update, final String sql) throws InterruptedException, UnexpectedException, SqlExecException, SqlExecTimeout {
         ExecutorService executor = null;
         try {
             if (externalExecutor != null) {
@@ -98,7 +99,7 @@ public class SafeSqlExecutor {
         }
     }
 
-    private long execute(String logPrefix, Future<Long> future) throws InterruptedException, SqlExecException, UnexpectedException, SqlExecTimeout {
+    private long execute(MonitorRunLogPrefix logPrefix, Future<Long> future) throws InterruptedException, SqlExecException, UnexpectedException, SqlExecTimeout {
         try {
             return future.get(forcedStatementExecutionTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
@@ -121,7 +122,7 @@ public class SafeSqlExecutor {
         return sqlExecTimeout * 1000 + sqlExecTimeoutForcingPeriodMillis;
     }
 
-    private long handleExceptionsOfExecuteWithoutTimeoutMethod(String logPrefix, ExecutionException t) throws SqlExecException, UnexpectedException {
+    private long handleExceptionsOfExecuteWithoutTimeoutMethod(MonitorRunLogPrefix logPrefix, ExecutionException t) throws SqlExecException, UnexpectedException {
         if (t.getCause() instanceof SqlExecException) {
             throw (SqlExecException) t.getCause();
         } else {

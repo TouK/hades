@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import pl.touk.hades.sql.exception.PrepareStmtException;
 import pl.touk.hades.sql.exception.SqlExecTimeoutSettingException;
 import pl.touk.hades.sql.timemonitoring.ExceptionEnum;
+import pl.touk.hades.sql.timemonitoring.MonitorRunLogPrefix;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -41,7 +42,7 @@ public class Utils {
         return tf.format(d);
     }
 
-    public static PreparedStatement safelyPrepareStatement(String curRunLogPrefix, Connection c, String dsDesc, int sqlExecTimeout, String sql) throws PrepareStmtException, SqlExecTimeoutSettingException {
+    public static PreparedStatement safelyPrepareStatement(MonitorRunLogPrefix curRunLogPrefix, Connection c, String dsDesc, int sqlExecTimeout, String sql) throws PrepareStmtException, SqlExecTimeoutSettingException {
         PreparedStatement ps = null;
         try {
             ps = c.prepareStatement(sql);

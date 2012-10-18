@@ -5,18 +5,50 @@ import pl.touk.hades.exception.UnexpectedException;
 import pl.touk.hades.sql.exception.*;
 
 public enum ExceptionEnum {
-    loadMeasuringException         {public LoadMeasuringException createException(String logPrefix) { return new LoadMeasuringException         (logPrefix); }},
-    unexpectedException            {public LoadMeasuringException createException(String logPrefix) { return new UnexpectedException            (logPrefix); }},
-    connException                  {public LoadMeasuringException createException(String logPrefix) { return new ConnException                  (logPrefix); }},
-    connTimeout                    {public LoadMeasuringException createException(String logPrefix) { return new ConnTimeout                    (logPrefix); }},
-    prepareStmtException           {public LoadMeasuringException createException(String logPrefix) { return new PrepareStmtException           (logPrefix); }},
-    sqlExecTimeoutSettingException {public LoadMeasuringException createException(String logPrefix) { return new SqlExecTimeoutSettingException (logPrefix); }},
-    sqlExecException               {public LoadMeasuringException createException(String logPrefix) { return new SqlExecException               (logPrefix); }},
-    sqlExecTimeout                 {public LoadMeasuringException createException(String logPrefix) { return new SqlExecTimeout                 (logPrefix); }};
+    loadMeasuringException {
+        public LoadMeasuringException createException(MonitorRunLogPrefix logPrefix) {
+            return new LoadMeasuringException(logPrefix);
+        }
+    },
+    unexpectedException {
+        public LoadMeasuringException createException(MonitorRunLogPrefix logPrefix) {
+            return new UnexpectedException(logPrefix);
+        }
+    },
+    connException {
+        public LoadMeasuringException createException(MonitorRunLogPrefix logPrefix) {
+            return new ConnException(logPrefix);
+        }
+    },
+    connTimeout {
+        public LoadMeasuringException createException(MonitorRunLogPrefix logPrefix) {
+            return new ConnTimeout(logPrefix);
+        }
+    },
+    prepareStmtException {
+        public LoadMeasuringException createException(MonitorRunLogPrefix logPrefix) {
+            return new PrepareStmtException(logPrefix);
+        }
+    },
+    sqlExecTimeoutSettingException {
+        public LoadMeasuringException createException(MonitorRunLogPrefix logPrefix) {
+            return new SqlExecTimeoutSettingException(logPrefix);
+        }
+    },
+    sqlExecException {
+        public LoadMeasuringException createException(MonitorRunLogPrefix logPrefix) {
+            return new SqlExecException(logPrefix);
+        }
+    },
+    sqlExecTimeout {
+        public LoadMeasuringException createException(MonitorRunLogPrefix logPrefix) {
+            return new SqlExecTimeout(logPrefix);
+        }
+    };
 
     private final Class<? extends LoadMeasuringException> exceptionClass = createException(null).getClass();
 
-    abstract protected LoadMeasuringException createException(String logPrefix);
+    abstract protected LoadMeasuringException createException(MonitorRunLogPrefix logPrefix);
 
     public long value() {
         return Long.MAX_VALUE - ordinal();

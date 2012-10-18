@@ -21,7 +21,8 @@ import pl.touk.hades.load.LoadLevel;
 import java.io.Serializable;
 
 /**
- * An immutable state of a {@link Machine} consisting of a {@link pl.touk.hades.load.Load} and a boolean indicating whether failover is active.
+ * An immutable state of a {@link Machine} consisting of a {@link pl.touk.hades.load.Load}
+ * and a boolean indicating whether failover is active.
  *
  * @author <a href="mailto:msk@touk.pl">Michal Sokolowski</a>
  */
