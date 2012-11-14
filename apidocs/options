@@ -1,26 +1,24 @@
 -classpath
-'/home/sokol/git/github/hades/target/checkout/hades-quartz/target/classes:/home/sokol/.m2/repository/org/quartz-scheduler/quartz/1.8.6/quartz-1.8.6.jar:/home/sokol/git/github/hades/target/checkout/hades-core/target/hades-core-2.0.12.jar:/home/sokol/.m2/repository/org/slf4j/slf4j-api/1.4.0/slf4j-api-1.4.0.jar'
+'/home/sokol/git/github/hades/target/checkout/hades-core/target/classes:/home/sokol/.m2/repository/org/slf4j/slf4j-api/1.4.0/slf4j-api-1.4.0.jar'
 -encoding
 'UTF-8'
 -protected
 -sourcepath
-'/home/sokol/git/github/hades/target/checkout/hades-quartz/src/main/java'
+'/home/sokol/git/github/hades/target/checkout/hades-core/src/main/java'
 -author
 -bottom
 'Copyright &#169; 2012. All Rights Reserved.'
 -charset
 'UTF-8'
 -d
-'/home/sokol/git/github/hades/target/checkout/hades-quartz/target/site/apidocs'
+'/home/sokol/git/github/hades/target/checkout/hades-core/target/site/apidocs'
 -docencoding
 'UTF-8'
 -doctitle
-'Hades Quartz 2.0.12 API'
+'Hades Core 2.0.13 API'
 -linkoffline
-'http://download.oracle.com/javase/1.5.0/docs/api' '/home/sokol/git/github/hades/target/checkout/hades-quartz/target/javadoc-bundle-options'
--linkoffline
-'http://touk.github.com/hades/hades-core/apidocs' '/home/sokol/git/github/hades/target/checkout/hades-core/target/site/apidocs'
+'http://download.oracle.com/javase/1.5.0/docs/api' '/home/sokol/git/github/hades/target/checkout/hades-core/target/javadoc-bundle-options'
 -use
 -version
 -windowtitle
-'Hades Quartz 2.0.12 API'
+'Hades Core 2.0.13 API'
