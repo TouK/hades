@@ -69,7 +69,7 @@ public class StateTest {
         assertTrue(state.getLoadAfterLastMeasurement() == state.getMachineState().getLoad());
 
         assertEquals("db load level is high or exceptionWhileMeasuring", state.getDesc(false));
-        assertEquals("db is ok and used", state.getDesc(true));
+        assertEquals("db ok and used", state.getDesc(true));
     }
 
     @Test
@@ -89,16 +89,16 @@ public class StateTest {
         s3.updateLocalStateWithNewExecTimes(emptyLogPrefix, high2, high1);
 
         // then:
-        assertEquals("db is ok and used", s1.getDesc(false));
-        assertEquals("db is ok and became unused", s1.getDesc(true));
+        assertEquals("db ok and used", s1.getDesc(false));
+        assertEquals("db repaired but still not used", s1.getDesc(true));
         assertFalse(s1.getMachineState().isFailoverActive());
         assertEquals(0, s1.getCycleModuloPeriod(false));
         assertEquals(normalPeriod, s1.getPeriod(false));
         assertEquals(1, s1.getCycleModuloPeriod(true));
         assertEquals(periodWhenUnused, s1.getPeriod(true));
 
-        assertEquals("db is ok and used", s2.getDesc(false));
-        assertEquals("db is ok and became unused", s2.getDesc(true));
+        assertEquals("db ok and used", s2.getDesc(false));
+        assertEquals("db repaired but still not used", s2.getDesc(true));
         assertFalse(s1.getMachineState().isFailoverActive());
         assertEquals(0, s2.getCycleModuloPeriod(false));
         assertEquals(normalPeriod, s2.getPeriod(false));
@@ -123,13 +123,7 @@ public class StateTest {
         s = createInitialLocalState(somePeriodWhenUnused, 1);
 
         // then:
-        assertTrue(s.sqlTimeIsMeasuredInThisCycle(mainDb));
-        assertTrue(s.sqlTimeIsMeasuredInThisCycle(failoverDb));
-        assertEquals(false, s.getMachineState().isFailoverActive());
-        assertEquals(normalPeriod, s.getPeriod(mainDb));
-        assertEquals(normalPeriod, s.getPeriod(failoverDb));
-        assertEquals(0, s.getCycleModuloPeriod(mainDb));
-        assertEquals(0, s.getCycleModuloPeriod(failoverDb));
+        assertState(s, true, true, false, normalPeriod, normalPeriod, 0, 0);
         assertEquals("db load not measured yet", s.getDesc(false));
         assertEquals("db load not measured yet", s.getDesc(true));
     }
@@ -144,13 +138,7 @@ public class StateTest {
         s.updateLocalStateWithNewExecTimes(emptyLogPrefix, low1, low1);
 
         // then:
-        assertTrue(s.sqlTimeIsMeasuredInThisCycle(mainDb));
-        assertFalse(s.sqlTimeIsMeasuredInThisCycle(failoverDb));
-        assertEquals(false, s.getMachineState().isFailoverActive());
-        assertEquals(normalPeriod, s.getPeriod(mainDb));
-        assertEquals(periodWhenUnused, s.getPeriod(failoverDb));
-        assertEquals(0, s.getCycleModuloPeriod(mainDb));
-        assertEquals(1, s.getCycleModuloPeriod(failoverDb));
+        assertState(s, true, false, false, normalPeriod, periodWhenUnused, 0, 1);
     }
 
     @Test
@@ -195,13 +183,7 @@ public class StateTest {
     }
 
     private void assertDecreasedLoadOfFailoverDatabase(State s, int cyclePerPeriodForFailoverDb) {
-        assertTrue(s.sqlTimeIsMeasuredInThisCycle(mainDb));
-        assertFalse(s.sqlTimeIsMeasuredInThisCycle(failoverDb));
-        assertEquals(false, s.getMachineState().isFailoverActive());
-        assertEquals(normalPeriod, s.getPeriod(mainDb));
-        assertEquals(periodWhenUnused, s.getPeriod(failoverDb));
-        assertEquals(0, s.getCycleModuloPeriod(mainDb));
-        assertEquals(cyclePerPeriodForFailoverDb, s.getCycleModuloPeriod(failoverDb));
+        assertState(s, true, false, false, normalPeriod, periodWhenUnused, 0, cyclePerPeriodForFailoverDb);
     }
 
     @Test
@@ -215,13 +197,123 @@ public class StateTest {
         s.updateLocalStateWithNewExecTimes(emptyLogPrefix, high1, low1);
 
         // then:
-        assertFalse(s.sqlTimeIsMeasuredInThisCycle(mainDb));
-        assertTrue(s.sqlTimeIsMeasuredInThisCycle(failoverDb));
-        assertEquals(true, s.getMachineState().isFailoverActive());
-        assertEquals(backOffMultiplier, s.getPeriod(mainDb));
-        assertEquals(normalPeriod, s.getPeriod(failoverDb));
-        assertEquals(1, s.getCycleModuloPeriod(mainDb));
-        assertEquals(0, s.getCycleModuloPeriod(failoverDb));
+        assertState(s, false, true, true, backOffMultiplier, normalPeriod, 1, 0);
+    }
+
+    @Test
+    public void shouldStartToMonitorFailoverDbThatWasNotUsedIfMainDbBecomesNotOk() {
+        // given:
+        int periodWhenUnused = 5;
+        int backOffMultiplier = 3;
+        State s = createInitialLocalState(periodWhenUnused, backOffMultiplier);
+
+        // when both dbs are ok:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium1, low1);
+
+        // then:
+        assertState(s, true, false, false, normalPeriod, periodWhenUnused, 0, 1);
+
+        // when main db becomes not ok:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, high1, State.notMeasuredInThisCycle);
+
+        // then:
+        assertState(s, false, true, true, backOffMultiplier, normalPeriod, 1, 0);
+
+        // when:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low2);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low2);
+
+        // then:
+        assertState(s, true, true, true, backOffMultiplier, normalPeriod, 0, 0);
+
+        // when main db becomes ok but not low:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium1, low2);
+
+        // then:
+        assertState(s, false, true, true, periodWhenUnused, normalPeriod, 1, 0);
+
+        // when failover db becomes high:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, high1);
+
+        // then:
+        assertState(s, true, false, false, normalPeriod, backOffMultiplier, 0, 1);
+
+        // when:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, high2, State.notMeasuredInThisCycle);
+
+        // then:
+        assertState(s, false, false, true, backOffMultiplier, backOffMultiplier, 1, 2);
+
+        // when
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, State.notMeasuredInThisCycle);
+
+        // then:
+        assertState(s, false, true, true, backOffMultiplier, backOffMultiplier, 2, 0);
+
+        // when:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, high2);
+
+        // then:
+        assertState(s, true, false, false, backOffMultiplier, backOffMultiplier * backOffMultiplier, 0, 1);
+
+        // when:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium1, State.notMeasuredInThisCycle);
+
+        // then:
+        assertState(s, true, false, false, normalPeriod, backOffMultiplier * backOffMultiplier, 0, 2);
+    }
+
+    @Test
+    public void shouldKeepFailoverUntilMainDbIsLow() {
+        // given:
+        int periodWhenUnused = 5;
+        int backOffMultiplier = 3;
+        State s = createInitialLocalState(periodWhenUnused, backOffMultiplier);
+
+        // when:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, high1, low1);
+
+        // then:
+        assertState(s, false, true, true, backOffMultiplier, normalPeriod, 1, 0);
+
+        // when:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium1, medium2);
+
+        // then:
+        assertState(s, false, true, true, periodWhenUnused, normalPeriod, 1, 0);
+        assertEquals("db repaired but still not used", s.getDesc(false));
+
+        // when:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low1);
+
+        // then:
+        assertState(s, false, true, true, periodWhenUnused, normalPeriod, 2, 0);
+
+        // when:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, high1);
+
+        // then:
+        assertState(s, true, false, false, normalPeriod, backOffMultiplier, 0, 1);
+
+    }
+
+    private void assertState(State s,
+                             boolean mainDbIsMeasuredInThisCycle,
+                             boolean failoverDbIsMeasuredInThisCycle,
+                             boolean failover,
+                             int mainPeriod,
+                             int failoverPeriod,
+                             int mainCycleModuloPeriod,
+                             int failoverCycleModuloPeriod) {
+        assertEquals(mainDbIsMeasuredInThisCycle, s.sqlTimeIsMeasuredInThisCycle(mainDb));
+        assertEquals(failoverDbIsMeasuredInThisCycle, s.sqlTimeIsMeasuredInThisCycle(failoverDb));
+        assertEquals(failover, s.getMachineState().isFailoverActive());
+        assertEquals(mainPeriod, s.getPeriod(mainDb));
+        assertEquals(failoverPeriod, s.getPeriod(failoverDb));
+        assertEquals(mainCycleModuloPeriod, s.getCycleModuloPeriod(mainDb));
+        assertEquals(failoverCycleModuloPeriod, s.getCycleModuloPeriod(failoverDb));
     }
 
     private State createInitialLocalState(int periodWhenUnused, int backOffMultiplier) {

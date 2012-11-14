@@ -66,10 +66,11 @@ public final class State implements Serializable, Cloneable {
     private StateAfterMeasurement[] stateAfterLastMeasurement = new StateAfterMeasurement[]{null, null};
 
     private enum StateAfterMeasurement {
-        notOkDb          ("db load level is " + LoadLevel.high + " or " + LoadLevel.exceptionWhileMeasuring),
-        okDbStillNotUsed ("db is ok and still not used"),
-        okDbBecameUnused ("db is ok and became unused"),
-        okDbUsed         ("db is ok and used");
+        notOkDb               ("db load level is " + LoadLevel.high + " or " + LoadLevel.exceptionWhileMeasuring),
+        stillOkDbStillNotUsed ("db still ok and still not used"),
+        repairedDbStillNotUsed("db repaired but still not used"),
+        okDbBecameUnused      ("db is ok and became unused"),
+        okDbUsed              ("db ok and used");
 
         final String desc;
 
@@ -403,10 +404,14 @@ public final class State implements Serializable, Cloneable {
                                                    MachineState oldMachineState,
                                                    boolean failover) {
         logPrefix = logPrefix.append((failover ? failoverDbName : mainDbName) + ": ");
+        LoadLevel oldLoadLevel = oldMachineState.getLoad().getLoadLevel(failover);
         if (sqlTimeNanos != notMeasuredInThisCycle) {
-            if (okDbStillNotUsed(
-                    failover, oldMachineState.isFailoverActive(), oldMachineState.getLoad().getLoadLevel(failover))) {
-                keepDecreasedLoadOfUnusedOkDb(logPrefix, failover);
+            if (okDbStillNotUsed(failover, oldMachineState.isFailoverActive(), oldLoadLevel)) {
+                if (oldLoadLevel == low || oldLoadLevel == medium) {
+                    keepDecreasedLoadOfStillNotUsedStillOkDb(logPrefix, failover);
+                } else {
+                    setDecreasedLoadOfStillNotUsedButRepairedDb(logPrefix, failover);
+                }
             } else if (notOkDb(failover)) {
                 decreaseLoadOfNotOkDb(logPrefix, failover);
             } else if (dbNotUsed(failover)) {
@@ -417,7 +422,19 @@ public final class State implements Serializable, Cloneable {
                 keepNormalLoadOfUsedOkDb(logPrefix, failover);
             }
         } else {
-            increaseCycleModuloPeriod(failover);
+            if (failover != machineState.isFailoverActive()) {
+                increaseCycleModuloPeriod(failover);
+            } else {
+                if (okDbBecameUsed(
+                        failover,
+                        oldMachineState.isFailoverActive(),
+                        oldLoadLevel)) {
+                    keepNormalLoadOfUsedOkDb(logPrefix, failover);
+                } else {
+                    assertNotOkDbUsed(failover);
+                    increaseCycleModuloPeriod(failover);
+                }
+            }
         }
     }
 
@@ -428,14 +445,35 @@ public final class State implements Serializable, Cloneable {
         }
     }
 
-    private void keepDecreasedLoadOfUnusedOkDb(MonitorRunLogPrefix logPrefix, boolean failover) {
+    private void assertNotOkDbUsed(boolean failover) {
+        if (machineState.getLoad().getLoadLevel(failover) == low
+                || machineState.getLoad().getLoadLevel(failover) == medium
+                || machineState.isFailoverActive() != failover) {
+            throw new IllegalStateException((failover ? "failover" : "main")
+                    + " db should have problems and should be used");
+        }
+    }
+
+    private void keepDecreasedLoadOfStillNotUsedStillOkDb(MonitorRunLogPrefix logPrefix, boolean failover) {
         if (getPeriod(failover) != currentToUnusedRatio) {
             throw new IllegalStateException("period != currentToUnusedRatio (" + currentToUnusedRatio
                     + ") for still not used " + (failover ? "failover" : "main") + " db");
         }
         logger.info(logPrefix + "db still unused: period=currentToUnusedRatio=" + currentToUnusedRatio);
         increaseCycleModuloPeriod(failover);
-        setStateAfterLastMeasurement(failover, StateAfterMeasurement.okDbStillNotUsed);
+        setStateAfterLastMeasurement(failover, StateAfterMeasurement.stillOkDbStillNotUsed);
+    }
+
+    private void setDecreasedLoadOfStillNotUsedButRepairedDb(MonitorRunLogPrefix logPrefix, boolean failover) {
+        if (getCycleModuloPeriod(failover) != 0) {
+            throw new IllegalStateException("setDecreasedLoadOfStillNotUsedButRepairedDb method used but "
+                    + "cycleModuloPeriod != 0 (" + getCycleModuloPeriod(failover) + ") for " + getDbName(failover));
+        }
+        logger.info(logPrefix + "db still unused but became ok: old period=" + getPeriod(failover)
+                + ", period=currentToUnusedRatio=" + currentToUnusedRatio);
+        setPeriod(failover, currentToUnusedRatio);
+        increaseCycleModuloPeriod(failover);
+        setStateAfterLastMeasurement(failover, StateAfterMeasurement.repairedDbStillNotUsed);
     }
 
     private void decreaseLoadOfNotOkDb(MonitorRunLogPrefix logPrefix, boolean failover) {
@@ -485,13 +523,18 @@ public final class State implements Serializable, Cloneable {
     private boolean okDbStillNotUsed(boolean failover, boolean wasFailoverActive, LoadLevel old) {
         LoadLevel cur = machineState.getLoad().getLoadLevel(failover);
         if (failover) {
-            return !wasFailoverActive && !machineState.isFailoverActive()
-                    && (old == low || old == medium)
-                    && (cur == low || cur == medium);
+            return !wasFailoverActive && !machineState.isFailoverActive() && (cur == low || cur == medium);
         } else {
-            return wasFailoverActive && machineState.isFailoverActive()
-                    && (old == low || old == medium)
-                    && (cur == low || cur == medium);
+            return wasFailoverActive && machineState.isFailoverActive() && (cur == low || cur == medium);
+        }
+    }
+
+    private boolean okDbBecameUsed(boolean failover, boolean wasFailoverActive, LoadLevel old) {
+        LoadLevel cur = machineState.getLoad().getLoadLevel(failover);
+        if (failover) {
+            return !wasFailoverActive && machineState.isFailoverActive() && (cur == low || cur == medium);
+        } else {
+            return wasFailoverActive && !machineState.isFailoverActive() && (cur == low || cur == medium);
         }
     }
 

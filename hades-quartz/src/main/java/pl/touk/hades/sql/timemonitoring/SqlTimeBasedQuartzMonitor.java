@@ -229,7 +229,7 @@ public final class SqlTimeBasedQuartzMonitor implements SqlTimeBasedMonitor {
             String[] triggerState = new String[1];
             Trigger t = findHadesQuartzTrigger(triggerState);
             if (t != null) {
-                logger.error(logPrefix + "found hades quartz trigger" +
+                logger.info(logPrefix + "found hades quartz trigger" +
                         t.toString() + " with state " + triggerState[0]);
                 logger.info(logPrefix + "previous fire time: " + t.getPreviousFireTime());
             } else {
