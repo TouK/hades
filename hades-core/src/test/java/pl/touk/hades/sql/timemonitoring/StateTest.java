@@ -264,6 +264,73 @@ public class StateTest {
     }
 
     @Test
+    public void shouldKeepDecreasedLoadOfStillNotUsedStillOkFailoverDb() {
+        // given:
+        int periodWhenUnused = 5;
+        int backOffMultiplier = 3;
+        State s = createInitialLocalState(periodWhenUnused, backOffMultiplier);
+
+        // when both dbs are ok for periodWhenUnused cycles:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium1, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium1, State.notMeasuredInThisCycle);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium1, State.notMeasuredInThisCycle);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium1, State.notMeasuredInThisCycle);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium1, State.notMeasuredInThisCycle);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium1, low1);
+
+        // then failover:
+        assertState(s, true, false, false, normalPeriod, periodWhenUnused, 0, 1);
+        assertEquals("db still ok and still not used", s.getDesc(true));
+    }
+
+    @Test
+    public void shouldKeepDecreasedLoadOfStillNotUsedStillOkMainDb() {
+        // given:
+        int periodWhenUnused = 5;
+        int backOffMultiplier = 3;
+        State s = createInitialLocalState(periodWhenUnused, backOffMultiplier);
+
+        // when main db breaks and after backOffMultiplier cycles it is repaired but not low:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, high1, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium1, low1);
+
+        // then:
+        assertState(s, false, true, true, periodWhenUnused, normalPeriod, 1, 0);
+        assertEquals("db repaired but still not used", s.getDesc(false));
+
+        // when main db after periodWhenUnused cycles is still ok but still not low:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, medium1, low1);
+
+        // then:
+        assertState(s, false, true, true, periodWhenUnused, normalPeriod, 1, 0);
+        assertEquals("db still ok and still not used", s.getDesc(false));
+    }
+
+    @Test
+    public void shouldDecreaseLoadOfOkFailoverDbThatBecameUnused() {
+        // given:
+        int periodWhenUnused = 5;
+        int backOffMultiplier = 3;
+        State s = createInitialLocalState(periodWhenUnused, backOffMultiplier);
+
+        // when main db breaks and then is repaired and failover db is always ok:
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, high1, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, State.notMeasuredInThisCycle, low1);
+        s.updateLocalStateWithNewExecTimes(emptyLogPrefix, low2, low1);
+
+        // then:
+        assertState(s, true, false, false, normalPeriod, periodWhenUnused, 0, 1);
+        assertEquals("db is ok and became unused", s.getDesc(true));
+    }
+
+    @Test
     public void shouldKeepFailoverUntilMainDbIsLow() {
         // given:
         int periodWhenUnused = 5;

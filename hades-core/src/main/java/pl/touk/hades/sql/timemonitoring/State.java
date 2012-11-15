@@ -415,7 +415,7 @@ public final class State implements Serializable, Cloneable {
             } else if (notOkDb(failover)) {
                 decreaseLoadOfNotOkDb(logPrefix, failover);
             } else if (dbNotUsed(failover)) {
-                assertOkDb(failover);
+                assertOkFailoverDb(failover);
                 decreaseLoadOfOkDbThatBecameUnused(logPrefix, failover);
             } else {
                 assertOkDb(failover);
@@ -443,6 +443,13 @@ public final class State implements Serializable, Cloneable {
                 && machineState.getLoad().getLoadLevel(failover) != medium) {
             throw new IllegalStateException((failover ? "failover" : "main") + " db should not have problems");
         }
+    }
+
+    private void assertOkFailoverDb(boolean failover) {
+        if (!failover) {
+            throw new IllegalStateException("failover, not main, db should not have problems");
+        }
+        assertOkDb(true);
     }
 
     private void assertNotOkDbUsed(boolean failover) {
